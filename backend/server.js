@@ -2,6 +2,17 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const {
+  initDb,
+  countPlacesBySource,
+  upsertPlaces,
+  queryPlaces,
+  listCategories,
+  listBuddies,
+  insertBuddy,
+  placesToGeoJson,
+} = require("./db");
+const { syncCalgaryFacilities } = require("./syncCalgary");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,8 +28,9 @@ const programs = JSON.parse(
 
 /** @type {Map<string, { sessionId: string, currentStep: number, completed: string[] }>} */
 const sessions = new Map();
-/** @type {{ id: string, name: string, area: string, time: string, note: string, createdAt: string }[]} */
-const buddies = [];
+
+initDb();
+seedProgramPlaces();
 
 app.use(express.json({ limit: "32kb" }));
 
@@ -61,6 +73,55 @@ function sessionPayload(session) {
     nextStep: done ? null : getStep(session.currentStep),
     done,
   };
+}
+
+function seedProgramPlaces() {
+  const now = new Date().toISOString();
+  const places = (programs.programs || [])
+    .filter(
+      (p) =>
+        typeof p.lat === "number" &&
+        Number.isFinite(p.lat) &&
+        typeof p.lng === "number" &&
+        Number.isFinite(p.lng)
+    )
+    .map((p) => ({
+      id: p.id || `program:${p.name}`,
+      source: "program",
+      name: p.name,
+      category: p.type || "program",
+      address: p.address || null,
+      lat: p.lat,
+      lng: p.lng,
+      phone: null,
+      website: p.link || null,
+      extras: {
+        hours: p.hours || null,
+        placeholder: Boolean(programs.placeholder),
+      },
+      updated_at: now,
+    }));
+
+  if (places.length) upsertPlaces(places);
+}
+
+function parseSourceList(value) {
+  if (!value || typeof value !== "string") return null;
+  const allowed = new Set(["calgary", "program", "buddy"]);
+  const list = value
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => allowed.has(s));
+  return list.length ? list : null;
+}
+
+function parseOptionalCoord(value, label) {
+  if (value == null || value === "") return { ok: true, value: null };
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) {
+    return { ok: false, error: `${label} must be a number` };
+  }
+  return { ok: true, value: n };
 }
 
 app.get("/api/health", (_req, res) => {
@@ -125,11 +186,11 @@ app.get("/api/programs", (_req, res) => {
 });
 
 app.get("/api/buddies", (_req, res) => {
-  res.json({ posts: buddies });
+  res.json({ posts: listBuddies() });
 });
 
 app.post("/api/buddies", (req, res) => {
-  const { name, area, time, note } = req.body || {};
+  const { name, area, time, note, lat, lng } = req.body || {};
   const fields = { name, area, time, note };
 
   for (const [key, value] of Object.entries(fields)) {
@@ -141,16 +202,69 @@ app.post("/api/buddies", (req, res) => {
     }
   }
 
+  const latParsed = parseOptionalCoord(lat, "lat");
+  if (!latParsed.ok) return jsonError(res, 400, latParsed.error);
+  const lngParsed = parseOptionalCoord(lng, "lng");
+  if (!lngParsed.ok) return jsonError(res, 400, lngParsed.error);
+
+  if (
+    (latParsed.value == null) !== (lngParsed.value == null)
+  ) {
+    return jsonError(res, 400, "lat and lng must both be provided together");
+  }
+
+  if (latParsed.value != null) {
+    if (latParsed.value < 50.7 || latParsed.value > 51.3) {
+      return jsonError(res, 400, "lat looks outside the Calgary area");
+    }
+    if (lngParsed.value < -114.4 || lngParsed.value > -113.7) {
+      return jsonError(res, 400, "lng looks outside the Calgary area");
+    }
+  }
+
   const post = {
     id: crypto.randomUUID(),
     name: name.trim(),
     area: area.trim(),
     time: time.trim(),
     note: note.trim(),
+    lat: latParsed.value,
+    lng: lngParsed.value,
     createdAt: new Date().toISOString(),
   };
-  buddies.unshift(post);
+
+  insertBuddy(post);
   res.status(201).json(post);
+});
+
+app.get("/api/map/places", (req, res) => {
+  const sources = parseSourceList(req.query.source);
+  const q = typeof req.query.q === "string" ? req.query.q : "";
+  const category =
+    typeof req.query.category === "string" ? req.query.category : "";
+  const amenity =
+    typeof req.query.amenity === "string" ? req.query.amenity : "";
+
+  const places = queryPlaces({ sources, q, category, amenity });
+  res.json(placesToGeoJson(places));
+});
+
+app.get("/api/map/categories", (req, res) => {
+  const sources = parseSourceList(req.query.source);
+  res.json({ categories: listCategories(sources) });
+});
+
+app.post("/api/map/sync", async (_req, res) => {
+  try {
+    const result = await syncCalgaryFacilities();
+    seedProgramPlaces();
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error(err);
+    res.status(502).json({
+      error: err.message || "Failed to sync Open Calgary data",
+    });
+  }
 });
 
 app.use((err, _req, res, _next) => {
@@ -158,6 +272,25 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: "Internal server error" });
 });
 
-app.listen(PORT, () => {
-  console.log(`Joint Effort listening on http://localhost:${PORT}`);
-});
+async function bootstrap() {
+  try {
+    if (countPlacesBySource("calgary") === 0) {
+      console.log("No Calgary facilities cached — syncing from Open Calgary…");
+      const result = await syncCalgaryFacilities();
+      console.log(`Synced ${result.upserted} Calgary facilities`);
+    } else {
+      console.log(
+        `Using cached Calgary facilities (${countPlacesBySource("calgary")} places)`
+      );
+    }
+  } catch (err) {
+    console.error("Initial Open Calgary sync failed:", err.message || err);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`Joint Effort listening on http://localhost:${PORT}`);
+    console.log(`Map: http://localhost:${PORT}/map.html`);
+  });
+}
+
+bootstrap();

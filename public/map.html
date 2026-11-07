@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Joint Effort — Calgary map</title>
+    <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/map.css" />
+  </head>
+  <body class="map-page">
+    <header class="map-header">
+      <div>
+        <h1>Joint Effort map</h1>
+        <p>Calgary facilities, programs, and walking buddies</p>
+      </div>
+      <nav class="map-nav">
+        <a href="/">API viewer</a>
+        <button type="button" id="sync-btn">Refresh city data</button>
+      </nav>
+    </header>
+
+    <div class="map-layout">
+      <aside class="map-filters" aria-label="Map filters">
+        <h2>Filters</h2>
+
+        <fieldset>
+          <legend>Show</legend>
+          <label><input type="checkbox" name="source" value="calgary" checked /> Facilities</label>
+          <label><input type="checkbox" name="source" value="program" checked /> Programs</label>
+          <label><input type="checkbox" name="source" value="buddy" checked /> Buddies</label>
+        </fieldset>
+
+        <label class="stack">
+          Search
+          <input type="search" id="q" placeholder="Name or address" />
+        </label>
+
+        <label class="stack">
+          Category
+          <select id="category">
+            <option value="">All categories</option>
+          </select>
+        </label>
+
+        <fieldset>
+          <legend>Amenities</legend>
+          <label><input type="radio" name="amenity" value="" checked /> Any</label>
+          <label><input type="radio" name="amenity" value="pool" /> Pool</label>
+          <label><input type="radio" name="amenity" value="gym" /> Gym</label>
+          <label><input type="radio" name="amenity" value="active_living" /> Active living</label>
+        </fieldset>
+
+        <p id="result-count" class="meta">Loading places…</p>
+        <p id="sync-status" class="meta" hidden></p>
+      </aside>
+
+      <div id="map" role="application" aria-label="Calgary interactive map"></div>
+
+      <aside id="detail" class="map-detail" hidden>
+        <button type="button" id="detail-close" aria-label="Close details">Close</button>
+        <h2 id="detail-title">Place</h2>
+        <p id="detail-category" class="meta"></p>
+        <dl id="detail-body"></dl>
+      </aside>
+    </div>
+
+    <script src="/vendor/leaflet/leaflet.js"></script>
+    <script src="/map.js"></script>
+  </body>
+</html>

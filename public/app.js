@@ -140,15 +140,22 @@ passStepBtn.addEventListener("click", passCurrentStep);
 buddyForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = new FormData(buddyForm);
+  const latRaw = String(form.get("lat") || "").trim();
+  const lngRaw = String(form.get("lng") || "").trim();
+  const payload = {
+    name: form.get("name"),
+    area: form.get("area"),
+    time: form.get("time"),
+    note: form.get("note"),
+  };
+  if (latRaw || lngRaw) {
+    payload.lat = Number(latRaw);
+    payload.lng = Number(lngRaw);
+  }
   try {
     await api("/api/buddies", {
       method: "POST",
-      body: JSON.stringify({
-        name: form.get("name"),
-        area: form.get("area"),
-        time: form.get("time"),
-        note: form.get("note"),
-      }),
+      body: JSON.stringify(payload),
     });
     buddyForm.reset();
     await loadBuddies();

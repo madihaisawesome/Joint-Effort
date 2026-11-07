@@ -12,7 +12,10 @@ npm install
 npm start
 ```
 
-Server: http://localhost:3000
+Server: http://localhost:3000  
+Map: http://localhost:3000/map.html
+
+On first start the backend syncs Calgary recreation facilities from [Open Calgary](https://data.calgary.ca/resource/hxfu-6d96.json) into a local SQLite cache (`backend/data/joint-effort.sqlite`), then merges curated programs and walking-buddy pins.
 
 ## Pose model (needed for stage b+)
 

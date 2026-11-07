@@ -3,39 +3,54 @@
   "note": "PLACEHOLDER DATA — verify names, addresses, hours, and links before sharing publicly. Sourced as sample Calgary, Alberta community listings for hackathon demo only.",
   "programs": [
     {
+      "id": "program-seniors-active-living",
       "name": "City of Calgary Seniors Active Living",
       "type": "fitness / wellness",
       "address": "Various Calgary Recreation facilities",
       "hours": "Check local centre schedule",
-      "link": "https://www.calgary.ca/recreation.html"
+      "link": "https://www.calgary.ca/recreation.html",
+      "lat": 51.0455,
+      "lng": -114.0631
     },
     {
+      "id": "program-kerby-centre",
       "name": "Kerby Centre Active Living Programs",
       "type": "seniors centre",
       "address": "1133 7 Ave SW, Calgary, AB",
       "hours": "Weekday daytime programs (verify)",
-      "link": "https://www.kerbycentre.com"
+      "link": "https://www.kerbycentre.com",
+      "lat": 51.0464,
+      "lng": -114.0849
     },
     {
+      "id": "program-southland",
       "name": "Southland Leisure Centre — Adult Fitness",
       "type": "community recreation",
       "address": "2000 Southland Dr SW, Calgary, AB",
       "hours": "Facility hours vary — verify online",
-      "link": "https://www.calgary.ca"
+      "link": "https://www.calgary.ca",
+      "lat": 50.9632,
+      "lng": -114.0814
     },
     {
+      "id": "program-village-square",
       "name": "Village Square Leisure Centre — Gentle Movement",
       "type": "community recreation",
       "address": "2623 56 St NE, Calgary, AB",
       "hours": "Facility hours vary — verify online",
-      "link": "https://www.calgary.ca"
+      "link": "https://www.calgary.ca",
+      "lat": 51.0758,
+      "lng": -113.9557
     },
     {
+      "id": "program-ahs-living-well",
       "name": "Alberta Health Services — Living Well with Chronic Conditions",
       "type": "health education / movement support",
       "address": "Programs offered across Calgary (locations vary)",
       "hours": "By program registration",
-      "link": "https://www.albertahealthservices.ca"
+      "link": "https://www.albertahealthservices.ca",
+      "lat": 51.0486,
+      "lng": -114.0708
     }
   ]
 }
