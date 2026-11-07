@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Joint Effort — API viewer</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Joint Effort</h1>
+      <p>Basic viewer for the backend API</p>
+      <p id="health" class="status">Checking health…</p>
+    </header>
+
+    <main>
+      <section>
+        <div class="section-head">
+          <h2>Curriculum</h2>
+          <button type="button" data-action="load-curriculum">Refresh</button>
+        </div>
+        <div id="curriculum" class="panel">Loading…</div>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <h2>Session</h2>
+          <button type="button" data-action="start-session">Start session</button>
+        </div>
+        <div id="session" class="panel">No session yet.</div>
+        <button type="button" id="pass-step" hidden>Mark current step passed</button>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <h2>Programs</h2>
+          <button type="button" data-action="load-programs">Refresh</button>
+        </div>
+        <div id="programs" class="panel">Loading…</div>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <h2>Walking buddies</h2>
+          <button type="button" data-action="load-buddies">Refresh</button>
+        </div>
+        <form id="buddy-form">
+          <label>Name <input name="name" required maxlength="200" /></label>
+          <label>Area <input name="area" required maxlength="200" /></label>
+          <label>Time <input name="time" required maxlength="200" /></label>
+          <label>Note <input name="note" required maxlength="200" /></label>
+          <button type="submit">Post buddy</button>
+        </form>
+        <div id="buddies" class="panel">Loading…</div>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
