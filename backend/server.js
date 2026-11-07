@@ -43,7 +43,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, "..", "public")));
 
 function jsonError(res, status, message) {
   return res.status(status).json({ error: message });
@@ -159,5 +159,5 @@ app.use((err, _req, res, _next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`movement-coach listening on http://localhost:${PORT}`);
+  console.log(`Joint Effort listening on http://localhost:${PORT}`);
 });

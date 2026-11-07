@@ -1,7 +1,7 @@
 {
-  "name": "movement-coach",
+  "name": "joint-effort",
   "version": "1.0.0",
-  "description": "On-device pose-guided gentle movement coach (hackathon skeleton)",
+  "description": "Joint Effort — on-device pose-guided gentle movement coach (hackathon skeleton)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
