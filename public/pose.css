@@ -1,0 +1,150 @@
+.pose-page {
+  min-height: 100vh;
+}
+
+.pose-header {
+  width: min(1100px, calc(100% - 1.5rem));
+  margin: 0 auto;
+  padding: 1.25rem 0 0.5rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.pose-header h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.pose-header p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+}
+
+.pose-nav {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.pose-nav a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.status-line {
+  width: min(1100px, calc(100% - 1.5rem));
+  margin: 0.5rem auto 0.35rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-size: 0.95rem;
+}
+
+.status-line.ok {
+  border-color: #9ec9b8;
+}
+
+.status-line.warn {
+  border-color: #e0b39a;
+  color: var(--warn);
+}
+
+.guidance {
+  width: min(1100px, calc(100% - 1.5rem));
+  margin: 0 auto 0.75rem;
+  padding: 0.55rem 0.75rem;
+  background: #fff6e8;
+  border: 1px solid #e0b39a;
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.guidance[hidden] {
+  display: none;
+}
+
+.pose-layout {
+  width: min(1100px, calc(100% - 1.5rem));
+  margin: 0 auto 1.5rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 1rem;
+  align-items: start;
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #101820;
+  border: 1px solid var(--line);
+  overflow: hidden;
+  /* Mirror for selfie alignment so skeleton matches the mirrored camera feed */
+  transform: scaleX(-1);
+}
+
+.stage video,
+.stage canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.stage canvas {
+  pointer-events: none;
+}
+
+.debug-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 0.9rem 1rem;
+}
+
+.debug-panel h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.debug-panel dl {
+  margin: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.debug-panel dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.4rem;
+}
+
+.debug-panel dt {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.debug-panel dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-family: Consolas, "Courier New", monospace;
+  font-weight: 600;
+}
+
+.debug-panel .meta {
+  margin: 0.85rem 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+@media (max-width: 800px) {
+  .pose-layout {
+    grid-template-columns: 1fr;
+  }
+}

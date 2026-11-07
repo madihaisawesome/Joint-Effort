@@ -3,60 +3,59 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Joint Effort — API viewer</title>
+    <title>Joint Effort — Pose coach</title>
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/pose.css" />
   </head>
-  <body>
-    <header>
-      <h1>Joint Effort</h1>
-      <p>Basic viewer for the backend API · <a href="/map.html">Open Calgary map</a></p>
-      <p id="health" class="status">Checking health…</p>
+  <body class="pose-page">
+    <header class="pose-header">
+      <div>
+        <h1>Joint Effort</h1>
+        <p>On-device pose coach — video stays in your browser</p>
+      </div>
+      <nav class="pose-nav">
+        <a href="/map.html">Map</a>
+        <a href="/viewer.html">API viewer</a>
+        <button type="button" id="stop-camera" disabled>Stop camera</button>
+      </nav>
     </header>
 
-    <main>
-      <section>
-        <div class="section-head">
-          <h2>Curriculum</h2>
-          <button type="button" data-action="load-curriculum">Refresh</button>
-        </div>
-        <div id="curriculum" class="panel">Loading…</div>
-      </section>
+    <p id="status" class="status-line" role="status">Loading model…</p>
+    <p id="guidance" class="guidance" hidden></p>
 
-      <section>
-        <div class="section-head">
-          <h2>Session</h2>
-          <button type="button" data-action="start-session">Start session</button>
-        </div>
-        <div id="session" class="panel">No session yet.</div>
-        <button type="button" id="pass-step" hidden>Mark current step passed</button>
-      </section>
+    <div class="pose-layout">
+      <div class="stage">
+        <video id="webcam" playsinline autoplay muted></video>
+        <canvas id="overlay"></canvas>
+      </div>
 
-      <section>
-        <div class="section-head">
-          <h2>Programs</h2>
-          <button type="button" data-action="load-programs">Refresh</button>
-        </div>
-        <div id="programs" class="panel">Loading…</div>
-      </section>
+      <aside class="debug-panel" aria-label="Angle debug panel">
+        <h2>Debug angles</h2>
+        <dl>
+          <div>
+            <dt>Left shoulder</dt>
+            <dd id="angle-l-shoulder">—</dd>
+          </div>
+          <div>
+            <dt>Right shoulder</dt>
+            <dd id="angle-r-shoulder">—</dd>
+          </div>
+          <div>
+            <dt>Left knee</dt>
+            <dd id="angle-l-knee">—</dd>
+          </div>
+          <div>
+            <dt>Right knee</dt>
+            <dd id="angle-r-knee">—</dd>
+          </div>
+        </dl>
+        <p class="meta">
+          Angles update as you move. Low-visibility poses show “step back”
+          instead of noisy numbers.
+        </p>
+      </aside>
+    </div>
 
-      <section>
-        <div class="section-head">
-          <h2>Walking buddies</h2>
-          <button type="button" data-action="load-buddies">Refresh</button>
-        </div>
-        <form id="buddy-form">
-          <label>Name <input name="name" required maxlength="200" /></label>
-          <label>Area <input name="area" required maxlength="200" /></label>
-          <label>Time <input name="time" required maxlength="200" /></label>
-          <label>Note <input name="note" required maxlength="200" /></label>
-          <label>Lat <input name="lat" type="number" step="any" placeholder="51.05" /></label>
-          <label>Lng <input name="lng" type="number" step="any" placeholder="-114.07" /></label>
-          <button type="submit">Post buddy</button>
-        </form>
-        <div id="buddies" class="panel">Loading…</div>
-      </section>
-    </main>
-
-    <script src="/app.js"></script>
+    <script type="module" src="/pose.js"></script>
   </body>
 </html>

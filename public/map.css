@@ -40,28 +40,21 @@
 .map-layout {
   flex: 1;
   display: grid;
-  grid-template-columns: 260px 1fr 300px;
+  grid-template-columns: 260px 1fr;
   gap: 0;
   min-height: 0;
   height: calc(100vh - 5.5rem);
   border-top: 1px solid var(--line);
 }
 
-.map-filters,
-.map-detail {
+.map-filters {
   background: var(--panel);
   border-right: 1px solid var(--line);
   padding: 1rem;
   overflow: auto;
 }
 
-.map-detail {
-  border-right: none;
-  border-left: 1px solid var(--line);
-}
-
-.map-filters h2,
-.map-detail h2 {
+.map-filters h2 {
   margin: 0 0 0.75rem;
   font-size: 1rem;
 }
@@ -111,68 +104,57 @@
   background: #d9e2e8;
 }
 
-.map-detail[hidden] {
-  display: none;
+.place-popup {
+  font-size: 0.9rem;
+  line-height: 1.35;
+  color: var(--ink);
+  min-width: 180px;
 }
 
-.map-layout:has(.map-detail[hidden]) {
-  grid-template-columns: 260px 1fr;
+.place-popup .popup-title {
+  display: block;
+  font-size: 1rem;
+  margin-bottom: 0.15rem;
 }
 
-#detail-close {
-  margin-bottom: 0.75rem;
-}
-
-#detail-body {
-  margin: 0;
-}
-
-#detail-body dt {
-  margin-top: 0.65rem;
-  font-size: 0.8rem;
+.place-popup .popup-sub {
   color: var(--muted);
+  font-size: 0.8rem;
+  margin-bottom: 0.55rem;
+  text-transform: capitalize;
+}
+
+.place-popup .popup-row {
+  display: grid;
+  gap: 0.1rem;
+  margin-top: 0.45rem;
+}
+
+.place-popup .popup-label {
+  font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  color: var(--muted);
 }
 
-#detail-body dd {
-  margin: 0.15rem 0 0;
+.place-popup a {
+  color: var(--accent);
+  word-break: break-word;
 }
 
-.marker-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid #fff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
-}
-
-.marker-dot.calgary {
-  background: #1f5f8b;
-}
-
-.marker-dot.program {
-  background: #2f7d4a;
-}
-
-.marker-dot.buddy {
-  background: #b05a1e;
+.leaflet-popup-content-wrapper {
+  border-radius: 6px;
 }
 
 @media (max-width: 900px) {
   .map-layout {
     grid-template-columns: 1fr;
-    grid-template-rows: auto 55vh auto;
+    grid-template-rows: auto 60vh;
     height: auto;
   }
 
-  .map-filters,
-  .map-detail {
+  .map-filters {
     border-right: none;
     border-bottom: 1px solid var(--line);
-  }
-
-  .map-layout:has(.map-detail[hidden]) {
-    grid-template-columns: 1fr;
   }
 }

@@ -12,11 +12,6 @@ const categorySelect = document.getElementById("category");
 const resultCount = document.getElementById("result-count");
 const syncStatus = document.getElementById("sync-status");
 const syncBtn = document.getElementById("sync-btn");
-const detail = document.getElementById("detail");
-const detailTitle = document.getElementById("detail-title");
-const detailCategory = document.getElementById("detail-category");
-const detailBody = document.getElementById("detail-body");
-const detailClose = document.getElementById("detail-close");
 
 const SOURCE_COLORS = {
   calgary: "#1f5f8b",
@@ -26,6 +21,14 @@ const SOURCE_COLORS = {
 
 let debounceTimer = null;
 let loadToken = 0;
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 function selectedSources() {
   return Array.from(document.querySelectorAll('input[name="source"]:checked')).map(
@@ -70,23 +73,9 @@ async function loadCategories() {
   }
 }
 
-function showDetail(props) {
-  detail.hidden = false;
-  detailTitle.textContent = props.name || "Place";
-  detailCategory.textContent = [props.source, props.category]
-    .filter(Boolean)
-    .join(" · ");
-
+function popupHtml(props) {
   const extras = props.extras || {};
-  const rows = [
-    ["Address", props.address],
-    ["Phone", props.phone],
-    ["Website", props.website],
-    ["Hours", extras.hours],
-    ["Time", extras.time],
-    ["Note", extras.note || extras.notes],
-    ["Org", extras.org],
-  ];
+  const subtitle = [props.source, props.category].filter(Boolean).join(" · ");
 
   const amenityLabels = [];
   if (extras.pool) amenityLabels.push("Pool");
@@ -96,34 +85,35 @@ function showDetail(props) {
   if (extras.ice) amenityLabels.push("Ice");
   if (extras.track) amenityLabels.push("Track");
   if (extras.spray_park) amenityLabels.push("Spray park");
-  if (amenityLabels.length) rows.push(["Amenities", amenityLabels.join(", ")]);
 
-  detailBody.innerHTML = "";
+  const rows = [
+    ["Address", props.address],
+    ["Phone", props.phone],
+    ["Hours", extras.hours],
+    ["Time", extras.time],
+    ["Note", extras.note || extras.notes],
+    ["Org", extras.org],
+    ["Amenities", amenityLabels.join(", ")],
+  ];
+
+  let body = "";
   for (const [label, value] of rows) {
     if (value == null || value === "") continue;
-    const dt = document.createElement("dt");
-    dt.textContent = label;
-    const dd = document.createElement("dd");
-    if (label === "Website" && typeof value === "string") {
-      const a = document.createElement("a");
-      a.href = value;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.textContent = value;
-      dd.appendChild(a);
-    } else {
-      dd.textContent = String(value);
-    }
-    detailBody.appendChild(dt);
-    detailBody.appendChild(dd);
+    body += `<div class="popup-row"><span class="popup-label">${escapeHtml(label)}</span><span>${escapeHtml(value)}</span></div>`;
   }
 
-  map.invalidateSize();
-}
+  if (props.website) {
+    const href = escapeHtml(props.website);
+    body += `<div class="popup-row"><span class="popup-label">Website</span><a href="${href}" target="_blank" rel="noopener noreferrer">${href}</a></div>`;
+  }
 
-function hideDetail() {
-  detail.hidden = true;
-  map.invalidateSize();
+  return `
+    <div class="place-popup">
+      <strong class="popup-title">${escapeHtml(props.name || "Place")}</strong>
+      ${subtitle ? `<div class="popup-sub">${escapeHtml(subtitle)}</div>` : ""}
+      ${body}
+    </div>
+  `;
 }
 
 async function loadPlaces() {
@@ -159,8 +149,10 @@ async function loadPlaces() {
       fillColor: color,
       fillOpacity: 0.95,
     });
-    marker.on("click", () => showDetail(props));
-    marker.bindTooltip(props.name || "Place", { sticky: true });
+    marker.bindPopup(popupHtml(props), {
+      maxWidth: 280,
+      className: "place-popup-wrap",
+    });
     layer.addLayer(marker);
   }
 }
@@ -178,7 +170,6 @@ document.querySelectorAll('input[name="source"], input[name="amenity"]').forEach
 });
 qInput.addEventListener("input", scheduleReload);
 categorySelect.addEventListener("change", () => loadPlaces());
-detailClose.addEventListener("click", hideDetail);
 
 syncBtn.addEventListener("click", async () => {
   syncBtn.disabled = true;

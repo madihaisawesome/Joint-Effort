@@ -12,14 +12,17 @@ npm install
 npm start
 ```
 
-Server: http://localhost:3000  
-Map: http://localhost:3000/map.html
+Pose coach: http://localhost:3000/  
+Map: http://localhost:3000/map.html  
+API viewer: http://localhost:3000/viewer.html
 
 On first start the backend syncs Calgary recreation facilities from [Open Calgary](https://data.calgary.ca/resource/hxfu-6d96.json) into a local SQLite cache (`backend/data/joint-effort.sqlite`), then merges curated programs and walking-buddy pins.
 
-## Pose model (needed for stage b+)
+## Pose coach (camera)
 
-Download the MediaPipe lite pose model:
+The home page loads the MediaPipe lite pose model from `public/models/pose_landmarker_lite.task`, requests camera permission, draws a skeleton overlay, and shows shoulder/knee angles in a debug panel. Low-visibility / too-close poses show **step back** instead of noisy angles. **Stop camera** releases the MediaStream.
+
+If the model file is missing, download it:
 
 https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task
 

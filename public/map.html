@@ -15,7 +15,8 @@
         <p>Calgary facilities, programs, and walking buddies</p>
       </div>
       <nav class="map-nav">
-        <a href="/">API viewer</a>
+        <a href="/">Pose coach</a>
+        <a href="/viewer.html">API viewer</a>
         <button type="button" id="sync-btn">Refresh city data</button>
       </nav>
     </header>
@@ -56,13 +57,6 @@
       </aside>
 
       <div id="map" role="application" aria-label="Calgary interactive map"></div>
-
-      <aside id="detail" class="map-detail" hidden>
-        <button type="button" id="detail-close" aria-label="Close details">Close</button>
-        <h2 id="detail-title">Place</h2>
-        <p id="detail-category" class="meta"></p>
-        <dl id="detail-body"></dl>
-      </aside>
     </div>
 
     <script src="/vendor/leaflet/leaflet.js"></script>
