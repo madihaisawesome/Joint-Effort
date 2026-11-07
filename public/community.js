@@ -60,14 +60,17 @@ async function loadBuddies() {
     if (!res.ok) throw new Error(data.error || "Could not load buddies");
     const posts = data.posts || [];
     if (!posts.length) {
-      buddiesList.innerHTML = "<li>No walking buddies posted yet.</li>";
+      buddiesList.innerHTML =
+        "<li>No activity invites yet — post a walk, park yoga, or stretch meetup.</li>";
       return;
     }
     buddiesList.innerHTML = posts
       .map(
         (p) => `
         <li>
-          <strong>${escapeHtml(p.name)}</strong> · ${escapeHtml(p.area)} · ${escapeHtml(p.time)}
+          <strong>${escapeHtml(p.activity || "Gentle movement")}</strong>
+          · ${escapeHtml(p.name)}
+          <br />${escapeHtml(p.area)} · ${escapeHtml(p.time)}
           <br />${escapeHtml(p.note)}
           <br /><span class="meta">${escapeHtml(p.createdAt || "")}</span>
         </li>`
@@ -84,6 +87,7 @@ buddyForm?.addEventListener("submit", async (event) => {
   const form = new FormData(buddyForm);
   const payload = {
     name: String(form.get("name") || "").trim(),
+    activity: String(form.get("activity") || "").trim(),
     area: String(form.get("area") || "").trim(),
     time: String(form.get("time") || "").trim(),
     note: String(form.get("note") || "").trim(),

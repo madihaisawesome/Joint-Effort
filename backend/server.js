@@ -466,9 +466,9 @@ app.get("/api/buddies", (_req, res) => {
 });
 
 app.post("/api/buddies", (req, res) => {
-  const { name, area, time, note, lat, lng } = req.body || {};
+  const { lat, lng } = req.body || {};
   const cleaned = {};
-  for (const key of ["name", "area", "time", "note"]) {
+  for (const key of ["name", "activity", "area", "time", "note"]) {
     const result = cleanBuddyText(req.body?.[key], key);
     if (!result.ok) return jsonError(res, 400, result.error);
     cleaned[key] = result.value;
@@ -497,6 +497,7 @@ app.post("/api/buddies", (req, res) => {
   const post = {
     id: crypto.randomUUID(),
     name: cleaned.name,
+    activity: cleaned.activity,
     area: cleaned.area,
     time: cleaned.time,
     note: cleaned.note,

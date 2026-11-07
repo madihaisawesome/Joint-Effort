@@ -55,6 +55,14 @@ function initDb() {
     );
   `);
 
+  // Broader activity invites (yoga, walks, stretch groups, etc.)
+  const buddyCols = db.prepare("PRAGMA table_info(buddies)").all();
+  if (!buddyCols.some((c) => c.name === "activity")) {
+    db.exec(
+      `ALTER TABLE buddies ADD COLUMN activity TEXT NOT NULL DEFAULT 'Gentle movement'`
+    );
+  }
+
   return db;
 }
 
@@ -183,7 +191,7 @@ function listCategories(sources) {
 function listBuddies() {
   return getDb()
     .prepare(
-      `SELECT id, name, area, time, note, lat, lng, created_at AS createdAt
+      `SELECT id, name, activity, area, time, note, lat, lng, created_at AS createdAt
        FROM buddies
        ORDER BY created_at DESC`
     )
@@ -193,12 +201,13 @@ function listBuddies() {
 function insertBuddy(post) {
   getDb()
     .prepare(
-      `INSERT INTO buddies (id, name, area, time, note, lat, lng, created_at)
-       VALUES (@id, @name, @area, @time, @note, @lat, @lng, @createdAt)`
+      `INSERT INTO buddies (id, name, activity, area, time, note, lat, lng, created_at)
+       VALUES (@id, @name, @activity, @area, @time, @note, @lat, @lng, @createdAt)`
     )
     .run({
       id: post.id,
       name: post.name,
+      activity: post.activity || "Gentle movement",
       area: post.area,
       time: post.time,
       note: post.note,
@@ -213,17 +222,19 @@ function insertBuddy(post) {
     typeof post.lng === "number" &&
     Number.isFinite(post.lng)
   ) {
+    const activity = post.activity || "Gentle movement";
     upsertPlace({
       id: `buddy:${post.id}`,
       source: "buddy",
-      name: `${post.name} — walk`,
-      category: "walking buddy",
+      name: `${post.name} — ${activity}`,
+      category: "activity invite",
       address: post.area,
       lat: post.lat,
       lng: post.lng,
       phone: null,
       website: null,
       extras: {
+        activity,
         time: post.time,
         note: post.note,
         buddyId: post.id,

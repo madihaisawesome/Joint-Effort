@@ -113,13 +113,13 @@ async function loadBuddies() {
     const data = await api("/api/buddies");
     const posts = data.posts || [];
     if (!posts.length) {
-      buddiesEl.textContent = "No buddy posts yet.";
+      buddiesEl.textContent = "No activity invites yet.";
       return;
     }
     buddiesEl.innerHTML = `<ul class="plain">${posts
       .map(
         (p) =>
-          `<li><strong>${p.name}</strong> · ${p.area} · ${p.time}<br />${p.note}<br /><span class="meta">${p.createdAt}</span></li>`
+          `<li><strong>${p.activity || "Gentle movement"}</strong> · ${p.name}<br />${p.area} · ${p.time}<br />${p.note}<br /><span class="meta">${p.createdAt}</span></li>`
       )
       .join("")}</ul>`;
   } catch (err) {
@@ -144,6 +144,7 @@ buddyForm.addEventListener("submit", async (event) => {
   const lngRaw = String(form.get("lng") || "").trim();
   const payload = {
     name: form.get("name"),
+    activity: form.get("activity"),
     area: form.get("area"),
     time: form.get("time"),
     note: form.get("note"),

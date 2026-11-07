@@ -45,17 +45,18 @@
 
       <section>
         <div class="section-head">
-          <h2>Walking buddies</h2>
+          <h2>Activity invites</h2>
           <button type="button" data-action="load-buddies">Refresh</button>
         </div>
         <form id="buddy-form">
           <label>Name <input name="name" required maxlength="200" /></label>
-          <label>Area <input name="area" required maxlength="200" /></label>
-          <label>Time <input name="time" required maxlength="200" /></label>
-          <label>Note <input name="note" required maxlength="200" /></label>
+          <label>Activity <input name="activity" required maxlength="200" placeholder="Yoga in the park" /></label>
+          <label>Place / area <input name="area" required maxlength="200" /></label>
+          <label>When <input name="time" required maxlength="200" placeholder="Every Thursday 10am" /></label>
+          <label>Details <input name="note" required maxlength="200" /></label>
           <label>Lat <input name="lat" type="number" step="any" placeholder="51.05" /></label>
           <label>Lng <input name="lng" type="number" step="any" placeholder="-114.07" /></label>
-          <button type="submit">Post buddy</button>
+          <button type="submit">Post activity invite</button>
         </form>
         <div id="buddies" class="panel">Loading…</div>
       </section>

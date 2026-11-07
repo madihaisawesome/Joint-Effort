@@ -91,9 +91,10 @@
       <p class="meta" id="programs-note">Loading verified listings…</p>
       <div id="programs-list" class="programs-list"></div>
 
-      <h2>Walking buddy board</h2>
+      <h2>Activity invite board</h2>
       <p class="meta">
-        Post a gentle walk invite. Keep notes short (200 characters max).
+        Share a gentle meetup — walks, park yoga, stretching, tai chi, and more.
+        Keep each field under 200 characters.
       </p>
       <form id="buddy-form" class="buddy-form">
         <label>
@@ -101,33 +102,52 @@
           <input name="name" required maxlength="200" autocomplete="nickname" />
         </label>
         <label>
-          Area
+          Activity
+          <input
+            name="activity"
+            required
+            maxlength="200"
+            placeholder="e.g. Yoga in the park"
+            list="activity-suggestions"
+          />
+          <datalist id="activity-suggestions">
+            <option value="Walking"></option>
+            <option value="Yoga in the park"></option>
+            <option value="Chair yoga"></option>
+            <option value="Stretching"></option>
+            <option value="Tai chi"></option>
+            <option value="Gentle strength"></option>
+            <option value="Sit-to-stand practice"></option>
+          </datalist>
+        </label>
+        <label>
+          Place / area
           <input
             name="area"
             required
             maxlength="200"
-            placeholder="e.g. Beltline"
+            placeholder="e.g. Prince's Island Park"
           />
         </label>
         <label>
-          Time
+          When
           <input
             name="time"
             required
             maxlength="200"
-            placeholder="e.g. Tue 10am"
+            placeholder="e.g. Every Thursday 10am"
           />
         </label>
         <label class="span-2">
-          Note
+          Details
           <input
             name="note"
             required
             maxlength="200"
-            placeholder="Slow pace welcome"
+            placeholder="Beginners welcome — bring a mat"
           />
         </label>
-        <button type="submit" class="btn-primary">Post buddy invite</button>
+        <button type="submit" class="btn-primary">Post activity invite</button>
       </form>
       <p id="buddy-status" class="meta" role="status"></p>
       <ul id="buddies-list" class="buddies-list"></ul>
