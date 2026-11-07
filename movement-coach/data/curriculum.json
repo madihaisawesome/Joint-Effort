@@ -1,0 +1,34 @@
+{
+  "id": "gentle-test-routine",
+  "title": "Gentle Test Routine",
+  "steps": [
+    {
+      "id": "step-1-arm-raise",
+      "title": "Arm Raise",
+      "instruction": "Slowly raise both arms out to the side until they are about shoulder height. Hold steady.",
+      "exercise": "arm_raise",
+      "targetAngle": 90,
+      "tolerance": 15,
+      "holdSeconds": 2
+    },
+    {
+      "id": "step-2-sit-to-stand",
+      "title": "Sit to Stand",
+      "instruction": "From a seated position, stand up fully, then sit back down. Repeat at your own pace.",
+      "exercise": "sit_to_stand",
+      "targetAngle": 165,
+      "seatedAngle": 90,
+      "tolerance": 15,
+      "reps": 3
+    },
+    {
+      "id": "step-3-balance-hold",
+      "title": "Balance Hold",
+      "instruction": "Stand comfortably with both feet on the floor. Keep your hips level and stay as still as you can.",
+      "exercise": "balance_hold",
+      "tolerance": 15,
+      "holdSeconds": 5,
+      "maxHipMovement": 0.04
+    }
+  ]
+}

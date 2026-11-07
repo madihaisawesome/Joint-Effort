@@ -1,0 +1,41 @@
+{
+  "placeholder": true,
+  "note": "PLACEHOLDER DATA — verify names, addresses, hours, and links before sharing publicly. Sourced as sample Calgary, Alberta community listings for hackathon demo only.",
+  "programs": [
+    {
+      "name": "City of Calgary Seniors Active Living",
+      "type": "fitness / wellness",
+      "address": "Various Calgary Recreation facilities",
+      "hours": "Check local centre schedule",
+      "link": "https://www.calgary.ca/recreation.html"
+    },
+    {
+      "name": "Kerby Centre Active Living Programs",
+      "type": "seniors centre",
+      "address": "1133 7 Ave SW, Calgary, AB",
+      "hours": "Weekday daytime programs (verify)",
+      "link": "https://www.kerbycentre.com"
+    },
+    {
+      "name": "Southland Leisure Centre — Adult Fitness",
+      "type": "community recreation",
+      "address": "2000 Southland Dr SW, Calgary, AB",
+      "hours": "Facility hours vary — verify online",
+      "link": "https://www.calgary.ca"
+    },
+    {
+      "name": "Village Square Leisure Centre — Gentle Movement",
+      "type": "community recreation",
+      "address": "2623 56 St NE, Calgary, AB",
+      "hours": "Facility hours vary — verify online",
+      "link": "https://www.calgary.ca"
+    },
+    {
+      "name": "Alberta Health Services — Living Well with Chronic Conditions",
+      "type": "health education / movement support",
+      "address": "Programs offered across Calgary (locations vary)",
+      "hours": "By program registration",
+      "link": "https://www.albertahealthservices.ca"
+    }
+  ]
+}
