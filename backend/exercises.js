@@ -1,0 +1,580 @@
+/**
+ * Server-side exercise evaluation from numeric pose metrics only.
+ * Video/landmarks stay on-device; the client sends angles / hip points.
+ */
+
+function within(value, target, tolerance) {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    Math.abs(value - target) <= tolerance
+  );
+}
+
+function avg(a, b) {
+  if (typeof a !== "number" || typeof b !== "number") return null;
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  return (a + b) / 2;
+}
+
+function pointDistance(a, b) {
+  if (!a || !b) return Infinity;
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.hypot(dx, dy);
+}
+
+function hipLevelDegrees(leftHip, rightHip) {
+  if (!leftHip || !rightHip) return null;
+  const dx = rightHip.x - leftHip.x;
+  const dy = rightHip.y - leftHip.y;
+  if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) return 0;
+  // 0° = perfectly level hips
+  return (Math.abs(Math.atan2(dy, dx)) * 180) / Math.PI;
+}
+
+function freshExerciseState(exercise) {
+  switch (exercise) {
+    case "arm_raise":
+      return { phase: "seek_raise", reps: 0, inRangeSince: null };
+    case "sit_to_stand":
+      return { phase: "seek_seated", reps: 0 };
+    case "balance_hold":
+      return { inRangeSince: null, hipOrigin: null, reps: 0 };
+    default:
+      return {};
+  }
+}
+
+/**
+ * @param {object} step curriculum step
+ * @param {object} metrics client metrics
+ * @param {object} state mutable per-session exercise state
+ * @param {number} nowMs
+ */
+function sideHint(value, target, tol, sideLabel) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return `Show your ${sideLabel} side clearly`;
+  }
+  if (value < target - tol) return `lift your ${sideLabel} arm a little higher`;
+  if (value > target + tol) return `lower your ${sideLabel} arm a little`;
+  return null;
+}
+
+function kneeHint(value, target, tol, goal) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "Keep both knees visible";
+  }
+  if (goal === "stand") {
+    if (value < target - tol) return "straighten your knees more to stand tall";
+    if (value > target + tol) return "ease your knees slightly — don’t lock hard";
+    return null;
+  }
+  // sit
+  if (value > target + tol) return "bend your knees more to sit down";
+  if (value < target - tol) return "don’t sit quite so low — rise a little";
+  return null;
+}
+
+function evaluateStep(step, metrics, state, nowMs) {
+  if (!metrics || metrics.usable === false) {
+    resetTransientHold(step.exercise, state);
+    return {
+      passed: false,
+      inRange: false,
+      feedback:
+        "Step back so your full body fits in the camera — we need clearer landmarks",
+      progress: progressSnapshot(step, state),
+    };
+  }
+
+  switch (step.exercise) {
+    case "arm_raise":
+      return evaluateArmRaise(step, metrics, state, nowMs);
+    case "sit_to_stand":
+      return evaluateSitToStand(step, metrics, state);
+    case "balance_hold":
+      return evaluateBalanceHold(step, metrics, state, nowMs);
+    default:
+      return {
+        passed: false,
+        inRange: false,
+        feedback: `Unknown exercise type: ${step.exercise}`,
+        progress: progressSnapshot(step, state),
+      };
+  }
+}
+
+function resetTransientHold(exercise, state) {
+  if (exercise === "arm_raise") {
+    state.inRangeSince = null;
+    // Keep completed reps; restart current rep toward raise
+    if (state.phase === "seek_lower") state.phase = "seek_raise";
+  }
+  if (exercise === "balance_hold") {
+    state.inRangeSince = null;
+    state.hipOrigin = null;
+  }
+}
+
+function armRaiseFeedback(left, right, target, tol) {
+  const leftHint = sideHint(left, target, tol, "left");
+  const rightHint = sideHint(right, target, tol, "right");
+  const leftOk = within(left, target, tol);
+  const rightOk = within(right, target, tol);
+
+  if (!leftOk && !rightOk) {
+    if (
+      typeof left === "number" &&
+      typeof right === "number" &&
+      left < target - tol &&
+      right < target - tol
+    ) {
+      return "Both arms are low — lift them out to shoulder height";
+    }
+    if (
+      typeof left === "number" &&
+      typeof right === "number" &&
+      left > target + tol &&
+      right > target + tol
+    ) {
+      return "Both arms are high — lower them to shoulder height";
+    }
+    const parts = [leftHint, rightHint].filter(Boolean);
+    if (parts.length) {
+      return parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(". ");
+    }
+    return "Raise both arms out to the sides to shoulder height";
+  }
+
+  if (!leftOk && leftHint) {
+    return `Right arm looks good — ${leftHint}`;
+  }
+  if (!rightOk && rightHint) {
+    return `Left arm looks good — ${rightHint}`;
+  }
+  return "Raise both arms out to the sides to shoulder height";
+}
+
+function armsLowered(left, right, target, tol) {
+  const lowThreshold = target - tol - 10;
+  const leftLow = typeof left === "number" && left < lowThreshold;
+  const rightLow = typeof right === "number" && right < lowThreshold;
+  return leftLow && rightLow;
+}
+
+function evaluateArmRaise(step, metrics, state, nowMs) {
+  const target = step.targetAngle;
+  const tol = step.tolerance;
+  const needReps = step.reps || 1;
+  const minHold = step.minHoldSeconds || 0.35;
+  const left = metrics.leftShoulderAngle;
+  const right = metrics.rightShoulderAngle;
+
+  if (!state.phase) state.phase = "seek_raise";
+  if (typeof state.reps !== "number") state.reps = 0;
+
+  const leftOk = within(left, target, tol);
+  const rightOk = within(right, target, tol);
+  const inRange = leftOk && rightOk;
+  const lowered = armsLowered(left, right, target, tol);
+
+  if (state.phase === "seek_raise") {
+    if (!inRange) {
+      state.inRangeSince = null;
+      return {
+        passed: false,
+        inRange: false,
+        feedback: `Rep ${state.reps + 1}/${needReps}: ${armRaiseFeedback(left, right, target, tol)}`,
+        progress: {
+          reps: state.reps,
+          targetReps: needReps,
+          phase: state.phase,
+          leftShoulderAngle: left ?? null,
+          rightShoulderAngle: right ?? null,
+        },
+      };
+    }
+
+    if (state.inRangeSince == null) state.inRangeSince = nowMs;
+    const heldSeconds = (nowMs - state.inRangeSince) / 1000;
+    if (heldSeconds >= minHold) {
+      state.phase = "seek_lower";
+      state.inRangeSince = null;
+    }
+
+    return {
+      passed: false,
+      inRange: true,
+      feedback:
+        heldSeconds >= minHold
+          ? `Rep ${state.reps + 1}/${needReps}: now lower your arms`
+          : `Rep ${state.reps + 1}/${needReps}: good height — hold briefly`,
+      progress: {
+        reps: state.reps,
+        targetReps: needReps,
+        phase: state.phase,
+        heldSeconds: Number(Math.min(heldSeconds, minHold).toFixed(2)),
+        leftShoulderAngle: left,
+        rightShoulderAngle: right,
+      },
+    };
+  }
+
+  // seek_lower
+  if (lowered) {
+    state.reps += 1;
+    state.phase = "seek_raise";
+    state.inRangeSince = null;
+    const passed = state.reps >= needReps;
+    return {
+      passed,
+      inRange: false,
+      feedback: passed
+        ? `Arm raise complete — ${needReps} reps done`
+        : `Nice — ${state.reps}/${needReps} reps. Raise again`,
+      progress: {
+        reps: state.reps,
+        targetReps: needReps,
+        phase: state.phase,
+        leftShoulderAngle: left ?? null,
+        rightShoulderAngle: right ?? null,
+      },
+    };
+  }
+
+  if (inRange) {
+    return {
+      passed: false,
+      inRange: true,
+      feedback: `Rep ${state.reps + 1}/${needReps}: lower both arms to finish the rep`,
+      progress: {
+        reps: state.reps,
+        targetReps: needReps,
+        phase: state.phase,
+        leftShoulderAngle: left,
+        rightShoulderAngle: right,
+      },
+    };
+  }
+
+  return {
+    passed: false,
+    inRange: false,
+    feedback: `Rep ${state.reps + 1}/${needReps}: keep lowering until arms are down`,
+    progress: {
+      reps: state.reps,
+      targetReps: needReps,
+      phase: state.phase,
+      leftShoulderAngle: left ?? null,
+      rightShoulderAngle: right ?? null,
+    },
+  };
+}
+
+function sitToStandFeedback(phase, left, right, knee, standingTarget, seatedTarget, tol, reps, needReps) {
+  const asymmetry =
+    typeof left === "number" &&
+    typeof right === "number" &&
+    Math.abs(left - right) > tol;
+
+  if (asymmetry) {
+    if (left < right - tol) {
+      return "Your left knee is more bent than your right — even them out";
+    }
+    return "Your right knee is more bent than your left — even them out";
+  }
+
+  if (phase === "seek_seated") {
+    const hint = kneeHint(knee, seatedTarget, tol, "sit");
+    return hint
+      ? `Start seated — ${hint}`
+      : "Sit down with knees bent about 90° to begin";
+  }
+
+  if (phase === "seek_stand") {
+    const hint = kneeHint(knee, standingTarget, tol, "stand");
+    if (hint) return `Rep ${reps + 1}/${needReps}: ${hint}`;
+    return `Rep ${reps + 1}/${needReps}: stand all the way up`;
+  }
+
+  if (phase === "seek_sit") {
+    const hint = kneeHint(knee, seatedTarget, tol, "sit");
+    if (hint) return `Rep ${reps + 1}/${needReps}: ${hint}`;
+    return `Rep ${reps + 1}/${needReps}: sit back down with control`;
+  }
+
+  return "Follow the sit-to-stand movement at your own pace";
+}
+
+function evaluateSitToStand(step, metrics, state) {
+  const standingTarget = step.targetAngle;
+  const seatedTarget = step.seatedAngle;
+  const tol = step.tolerance;
+  const needReps = step.reps;
+  const left = metrics.leftKneeAngle;
+  const right = metrics.rightKneeAngle;
+  const knee = avg(left, right);
+
+  if (typeof knee !== "number") {
+    return {
+      passed: false,
+      inRange: false,
+      feedback:
+        "We can’t see your knees clearly — step back and face the camera",
+      progress: {
+        reps: state.reps || 0,
+        targetReps: needReps,
+        phase: state.phase,
+      },
+    };
+  }
+
+  const seated = within(knee, seatedTarget, tol);
+  const standing = within(knee, standingTarget, tol);
+
+  if (!state.phase) state.phase = "seek_seated";
+  if (typeof state.reps !== "number") state.reps = 0;
+
+  if (state.phase === "seek_seated" && seated) {
+    state.phase = "seek_stand";
+  } else if (state.phase === "seek_stand" && standing) {
+    state.phase = "seek_sit";
+  } else if (state.phase === "seek_sit" && seated) {
+    state.reps += 1;
+    state.phase = "seek_stand";
+  }
+
+  const passed = state.reps >= needReps;
+  const feedback = passed
+    ? `Sit-to-stand complete — ${needReps} reps done`
+    : sitToStandFeedback(
+        state.phase,
+        left,
+        right,
+        knee,
+        standingTarget,
+        seatedTarget,
+        tol,
+        state.reps,
+        needReps
+      );
+
+  return {
+    passed,
+    inRange: seated || standing,
+    feedback,
+    progress: {
+      reps: state.reps,
+      targetReps: needReps,
+      phase: state.phase,
+      kneeAngle: Number(knee.toFixed(1)),
+      leftKneeAngle: left ?? null,
+      rightKneeAngle: right ?? null,
+    },
+  };
+}
+
+function balanceFeedback(leftHip, rightHip, level, levelTol, leftMove, rightMove, maxMove) {
+  if (!leftHip || !rightHip) {
+    return "Stand facing the camera with both hips visible";
+  }
+
+  if (typeof level === "number" && level > levelTol) {
+    if (leftHip.y > rightHip.y + 0.01) {
+      return "Your left hip is dropping — level your hips";
+    }
+    if (rightHip.y > leftHip.y + 0.01) {
+      return "Your right hip is dropping — level your hips";
+    }
+    return "Level your hips — keep your pelvis steady";
+  }
+
+  if (leftMove > maxMove || rightMove > maxMove) {
+    if (leftMove >= rightMove) {
+      return "You’re swaying — plant your feet and steady your left side";
+    }
+    return "You’re swaying — plant your feet and steady your right side";
+  }
+
+  return "Stand tall with hips level and stay as still as you can";
+}
+
+function evaluateBalanceHold(step, metrics, state, nowMs) {
+  const holdSeconds = step.holdSeconds;
+  const needReps = step.reps || 1;
+  const maxMove = step.maxHipMovement;
+  const levelTol = step.tolerance;
+  const leftHip = metrics.leftHip;
+  const rightHip = metrics.rightHip;
+
+  if (typeof state.reps !== "number") state.reps = 0;
+
+  const level = hipLevelDegrees(leftHip, rightHip);
+  const levelOk = typeof level === "number" && level <= levelTol;
+
+  if (!leftHip || !rightHip || !levelOk) {
+    state.inRangeSince = null;
+    state.hipOrigin = null;
+    return {
+      passed: false,
+      inRange: false,
+      feedback: `Hold ${state.reps + 1}/${needReps}: ${balanceFeedback(leftHip, rightHip, level, levelTol, 0, 0, maxMove)}`,
+      progress: {
+        reps: state.reps,
+        targetReps: needReps,
+        holdSeconds,
+        heldSeconds: 0,
+        hipLevelDegrees: level == null ? null : Number(level.toFixed(1)),
+      },
+    };
+  }
+
+  if (!state.hipOrigin) {
+    state.hipOrigin = {
+      left: { x: leftHip.x, y: leftHip.y },
+      right: { x: rightHip.x, y: rightHip.y },
+    };
+    state.inRangeSince = nowMs;
+  }
+
+  const leftMove = pointDistance(leftHip, state.hipOrigin.left);
+  const rightMove = pointDistance(rightHip, state.hipOrigin.right);
+  const movedTooMuch = leftMove > maxMove || rightMove > maxMove;
+
+  if (movedTooMuch) {
+    state.hipOrigin = {
+      left: { x: leftHip.x, y: leftHip.y },
+      right: { x: rightHip.x, y: rightHip.y },
+    };
+    state.inRangeSince = nowMs;
+    return {
+      passed: false,
+      inRange: false,
+      feedback: `Hold ${state.reps + 1}/${needReps}: ${balanceFeedback(
+        leftHip,
+        rightHip,
+        level,
+        levelTol,
+        leftMove,
+        rightMove,
+        maxMove
+      )}`,
+      progress: {
+        reps: state.reps,
+        targetReps: needReps,
+        holdSeconds,
+        heldSeconds: 0,
+        hipLevelDegrees: Number(level.toFixed(1)),
+        leftHipMovement: Number(leftMove.toFixed(3)),
+        rightHipMovement: Number(rightMove.toFixed(3)),
+      },
+    };
+  }
+
+  if (state.inRangeSince == null) state.inRangeSince = nowMs;
+  const heldSeconds = (nowMs - state.inRangeSince) / 1000;
+
+  if (heldSeconds >= holdSeconds) {
+    state.reps += 1;
+    state.inRangeSince = null;
+    state.hipOrigin = null;
+    const passed = state.reps >= needReps;
+    return {
+      passed,
+      inRange: true,
+      feedback: passed
+        ? `Balance complete — ${needReps} steady holds done`
+        : `Hold ${state.reps}/${needReps} done — settle and hold still again`,
+      progress: {
+        reps: state.reps,
+        targetReps: needReps,
+        holdSeconds,
+        heldSeconds: holdSeconds,
+        hipLevelDegrees: Number(level.toFixed(1)),
+        leftHipMovement: Number(leftMove.toFixed(3)),
+        rightHipMovement: Number(rightMove.toFixed(3)),
+      },
+    };
+  }
+
+  return {
+    passed: false,
+    inRange: true,
+    feedback: `Hold ${state.reps + 1}/${needReps}: stay still ${heldSeconds.toFixed(1)}s / ${holdSeconds}s`,
+    progress: {
+      reps: state.reps,
+      targetReps: needReps,
+      holdSeconds,
+      heldSeconds: Number(heldSeconds.toFixed(2)),
+      hipLevelDegrees: Number(level.toFixed(1)),
+      leftHipMovement: Number(leftMove.toFixed(3)),
+      rightHipMovement: Number(rightMove.toFixed(3)),
+    },
+  };
+}
+
+function progressSnapshot(step, state) {
+  if (step.reps) {
+    return {
+      reps: state.reps || 0,
+      targetReps: step.reps,
+      phase: state.phase || null,
+      holdSeconds: step.holdSeconds || null,
+      heldSeconds: 0,
+    };
+  }
+  return {
+    holdSeconds: step.holdSeconds || 0,
+    heldSeconds: 0,
+  };
+}
+
+function parseMetrics(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { ok: false, error: "metrics must be an object" };
+  }
+
+  const metrics = {
+    usable: raw.usable !== false,
+  };
+
+  const angleKeys = [
+    "leftShoulderAngle",
+    "rightShoulderAngle",
+    "leftKneeAngle",
+    "rightKneeAngle",
+  ];
+  for (const key of angleKeys) {
+    if (raw[key] == null || raw[key] === "") continue;
+    const n = Number(raw[key]);
+    if (!Number.isFinite(n)) {
+      return { ok: false, error: `${key} must be a number` };
+    }
+    metrics[key] = n;
+  }
+
+  for (const key of ["leftHip", "rightHip"]) {
+    if (raw[key] == null) continue;
+    const p = raw[key];
+    if (typeof p !== "object" || Array.isArray(p)) {
+      return { ok: false, error: `${key} must be an object with x and y` };
+    }
+    const x = Number(p.x);
+    const y = Number(p.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return { ok: false, error: `${key}.x and ${key}.y must be numbers` };
+    }
+    metrics[key] = { x, y };
+  }
+
+  if (typeof raw.usable === "boolean") metrics.usable = raw.usable;
+
+  return { ok: true, metrics };
+}
+
+module.exports = {
+  evaluateStep,
+  freshExerciseState,
+  parseMetrics,
+};

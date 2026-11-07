@@ -60,6 +60,26 @@ curl -X POST http://localhost:3000/api/sessions/SESSION_ID/progress ^
   -d "{\"stepId\":\"step-1-arm-raise\",\"passed\":true}"
 ```
 
+### Session + evaluate (server-side exercise rules)
+
+Send numeric metrics only (no video). The server tracks hold time / reps and advances the step when rules pass.
+
+```bash
+curl -X POST http://localhost:3000/api/sessions/SESSION_ID/evaluate ^
+  -H "Content-Type: application/json" ^
+  -d "{\"stepId\":\"step-1-arm-raise\",\"metrics\":{\"usable\":true,\"leftShoulderAngle\":90,\"rightShoulderAngle\":88}}"
+```
+
+Metrics by exercise:
+
+| Exercise | Fields |
+|----------|--------|
+| arm_raise | `leftShoulderAngle`, `rightShoulderAngle`, `usable` |
+| sit_to_stand | `leftKneeAngle`, `rightKneeAngle`, `usable` |
+| balance_hold | `leftHip`/`rightHip` `{x,y}`, `usable` |
+
+Set `usable: false` (e.g. on-device “step back”) so the server resets hold timers instead of counting bad frames.
+
 ### Buddies
 
 ```bash
@@ -73,6 +93,6 @@ curl -X POST http://localhost:3000/api/buddies ^
 
 | Step | Fields |
 |------|--------|
-| arm_raise | `targetAngle` (90), `tolerance` (15), `holdSeconds` (2) |
-| sit_to_stand | `seatedAngle` (90), `targetAngle` (165 standing), `tolerance` (15), `reps` (3) |
-| balance_hold | `holdSeconds` (5), `maxHipMovement` (0.04), `tolerance` (15 for hip level) |
+| arm_raise | `targetAngle` (90), `tolerance` (15), `reps` (5), `minHoldSeconds` (0.4) |
+| sit_to_stand | `seatedAngle` (90), `targetAngle` (165 standing), `tolerance` (15), `reps` (5) |
+| balance_hold | `holdSeconds` (2 per hold), `reps` (5), `maxHipMovement` (0.04), `tolerance` (15) |

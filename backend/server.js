@@ -13,6 +13,11 @@ const {
   placesToGeoJson,
 } = require("./db");
 const { syncCalgaryFacilities } = require("./syncCalgary");
+const {
+  evaluateStep,
+  freshExerciseState,
+  parseMetrics,
+} = require("./exercises");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,7 +31,15 @@ const programs = JSON.parse(
   fs.readFileSync(path.join(DATA_DIR, "programs.json"), "utf8")
 );
 
-/** @type {Map<string, { sessionId: string, currentStep: number, completed: string[] }>} */
+/**
+ * @typedef {{
+ *   sessionId: string,
+ *   currentStep: number,
+ *   completed: string[],
+ *   exerciseState: object
+ * }} Session
+ */
+/** @type {Map<string, Session>} */
 const sessions = new Map();
 
 initDb();
@@ -66,13 +79,26 @@ function getStep(index) {
   return curriculum.steps[index];
 }
 
-function sessionPayload(session) {
+function sessionPayload(session, evaluation = null) {
   const done = session.currentStep >= curriculum.steps.length;
+  const nextStep = done ? null : getStep(session.currentStep);
   return {
-    session,
-    nextStep: done ? null : getStep(session.currentStep),
+    session: {
+      sessionId: session.sessionId,
+      currentStep: session.currentStep,
+      completed: session.completed,
+    },
+    nextStep,
     done,
+    evaluation,
   };
+}
+
+function resetExerciseState(session) {
+  const step = getStep(session.currentStep);
+  session.exerciseState = step
+    ? freshExerciseState(step.exercise)
+    : {};
 }
 
 function seedProgramPlaces() {
@@ -134,7 +160,13 @@ app.get("/api/curriculum", (_req, res) => {
 
 app.post("/api/sessions", (_req, res) => {
   const sessionId = crypto.randomUUID();
-  const session = { sessionId, currentStep: 0, completed: [] };
+  const session = {
+    sessionId,
+    currentStep: 0,
+    completed: [],
+    exerciseState: {},
+  };
+  resetExerciseState(session);
   sessions.set(sessionId, session);
   res.status(201).json(sessionPayload(session));
 });
@@ -145,6 +177,9 @@ app.get("/api/sessions/:id", (req, res) => {
   res.json(sessionPayload(session));
 });
 
+/**
+ * Legacy client-asserted progress. Prefer POST /evaluate with metrics.
+ */
 app.post("/api/sessions/:id/progress", (req, res) => {
   const session = sessions.get(req.params.id);
   if (!session) return jsonError(res, 404, "Session not found");
@@ -175,9 +210,75 @@ app.post("/api/sessions/:id/progress", (req, res) => {
       session.completed.push(stepId);
     }
     session.currentStep += 1;
+    resetExerciseState(session);
   }
 
   res.json(sessionPayload(session));
+});
+
+/**
+ * Evaluate live pose metrics against the current curriculum step.
+ * Body: { stepId, metrics: { usable, leftShoulderAngle, rightShoulderAngle,
+ *   leftKneeAngle, rightKneeAngle, leftHip: {x,y}, rightHip: {x,y} }, timestamp? }
+ * Advances the session when the exercise rules say passed.
+ */
+app.post("/api/sessions/:id/evaluate", (req, res) => {
+  const session = sessions.get(req.params.id);
+  if (!session) return jsonError(res, 404, "Session not found");
+
+  if (session.currentStep >= curriculum.steps.length) {
+    return res.json(
+      sessionPayload(session, {
+        passed: true,
+        inRange: false,
+        feedback: "Routine complete",
+        progress: null,
+      })
+    );
+  }
+
+  const { stepId, metrics: rawMetrics, timestamp } = req.body || {};
+  if (typeof stepId !== "string" || !stepId.trim()) {
+    return jsonError(res, 400, "stepId must be a non-empty string");
+  }
+
+  const expected = getStep(session.currentStep);
+  if (!expected || expected.id !== stepId) {
+    return jsonError(
+      res,
+      400,
+      `stepId does not match current step (expected ${expected ? expected.id : "none"})`
+    );
+  }
+
+  const parsed = parseMetrics(rawMetrics);
+  if (!parsed.ok) return jsonError(res, 400, parsed.error);
+
+  const nowMs =
+    typeof timestamp === "number" && Number.isFinite(timestamp)
+      ? timestamp
+      : Date.now();
+
+  if (!session.exerciseState || typeof session.exerciseState !== "object") {
+    resetExerciseState(session);
+  }
+
+  const evaluation = evaluateStep(
+    expected,
+    parsed.metrics,
+    session.exerciseState,
+    nowMs
+  );
+
+  if (evaluation.passed) {
+    if (!session.completed.includes(stepId)) {
+      session.completed.push(stepId);
+    }
+    session.currentStep += 1;
+    resetExerciseState(session);
+  }
+
+  res.json(sessionPayload(session, evaluation));
 });
 
 app.get("/api/programs", (_req, res) => {

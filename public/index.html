@@ -16,11 +16,20 @@
       <nav class="pose-nav">
         <a href="/map.html">Map</a>
         <a href="/viewer.html">API viewer</a>
+        <button type="button" id="skip-step" disabled>Skip step</button>
         <button type="button" id="stop-camera" disabled>Stop camera</button>
       </nav>
     </header>
 
     <p id="status" class="status-line" role="status">Loading model…</p>
+
+    <section id="step-card" class="step-card" aria-live="polite">
+      <p id="step-label" class="meta">Starting session…</p>
+      <h2 id="step-title">—</h2>
+      <p id="step-instruction"></p>
+      <p id="hold-progress" class="hold-progress" hidden></p>
+    </section>
+
     <p id="guidance" class="guidance" hidden></p>
 
     <div class="pose-layout">
@@ -50,8 +59,7 @@
           </div>
         </dl>
         <p class="meta">
-          Angles update as you move. Low-visibility poses show “step back”
-          instead of noisy numbers.
+          Angles are smoothed. Hold timer runs only while in range.
         </p>
       </aside>
     </div>
