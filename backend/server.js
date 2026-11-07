@@ -2,6 +2,7 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 const {
   initDb,
   countPlacesBySource,
@@ -18,11 +19,18 @@ const {
   freshExerciseState,
   parseMetrics,
 } = require("./exercises");
+const {
+  isConfigured: geminiConfigured,
+  coachTip,
+  sessionSummary,
+  MODEL: GEMINI_MODEL,
+} = require("./geminiCoach");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, "data");
 const MAX_BUDDY_FIELD = 200;
+const GEMINI_THROTTLE_MS = 4000;
 
 const curriculum = JSON.parse(
   fs.readFileSync(path.join(DATA_DIR, "curriculum.json"), "utf8")
@@ -36,7 +44,11 @@ const programs = JSON.parse(
  *   sessionId: string,
  *   currentStep: number,
  *   completed: string[],
- *   exerciseState: object
+ *   exerciseState: object,
+ *   lastGeminiAt: number,
+ *   lastGeminiFeedbackKey: string,
+ *   coachNotes: string[],
+ *   summary: string | null
  * }} Session
  */
 /** @type {Map<string, Session>} */
@@ -91,7 +103,58 @@ function sessionPayload(session, evaluation = null) {
     nextStep,
     done,
     evaluation,
+    summary: session.summary || null,
+    gemini: {
+      configured: geminiConfigured(),
+      model: GEMINI_MODEL,
+    },
   };
+}
+
+function feedbackKey(evaluation) {
+  const progress = evaluation?.progress || {};
+  return [
+    evaluation?.passed ? "pass" : "nopass",
+    evaluation?.inRange ? "in" : "out",
+    evaluation?.feedback || "",
+    progress.phase || "",
+    progress.reps ?? "",
+  ].join("|");
+}
+
+function shouldAskGemini(session, evaluation) {
+  if (!geminiConfigured()) return false;
+  if (!evaluation) return false;
+  if (evaluation.passed) return true;
+  // Skip noisy "step back" spam unless it just flipped
+  const key = feedbackKey(evaluation);
+  const now = Date.now();
+  if (key !== session.lastGeminiFeedbackKey) {
+    if (now - (session.lastGeminiAt || 0) >= 1500) return true;
+  }
+  if (now - (session.lastGeminiAt || 0) >= GEMINI_THROTTLE_MS) return true;
+  return false;
+}
+
+async function enrichWithGemini(session, step, evaluation, metrics) {
+  evaluation.aiEnhanced = false;
+  if (!shouldAskGemini(session, evaluation)) {
+    return evaluation;
+  }
+
+  const tip = await coachTip({ step, evaluation, metrics });
+  session.lastGeminiAt = Date.now();
+  session.lastGeminiFeedbackKey = feedbackKey(evaluation);
+  if (tip.aiEnhanced && tip.text) {
+    evaluation.feedback = tip.text;
+    evaluation.aiEnhanced = true;
+    if (!session.coachNotes) session.coachNotes = [];
+    session.coachNotes.push(tip.text);
+    if (session.coachNotes.length > 12) {
+      session.coachNotes = session.coachNotes.slice(-12);
+    }
+  }
+  return evaluation;
 }
 
 function resetExerciseState(session) {
@@ -123,6 +186,7 @@ function seedProgramPlaces() {
       website: p.link || null,
       extras: {
         hours: p.hours || null,
+        phone: p.phone || null,
         placeholder: Boolean(programs.placeholder),
       },
       updated_at: now,
@@ -151,7 +215,10 @@ function parseOptionalCoord(value, label) {
 }
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true });
+  res.json({
+    ok: true,
+    gemini: { configured: geminiConfigured(), model: GEMINI_MODEL },
+  });
 });
 
 app.get("/api/curriculum", (_req, res) => {
@@ -165,6 +232,10 @@ app.post("/api/sessions", (_req, res) => {
     currentStep: 0,
     completed: [],
     exerciseState: {},
+    lastGeminiAt: 0,
+    lastGeminiFeedbackKey: "",
+    coachNotes: [],
+    summary: null,
   };
   resetExerciseState(session);
   sessions.set(sessionId, session);
@@ -221,18 +292,30 @@ app.post("/api/sessions/:id/progress", (req, res) => {
  * Body: { stepId, metrics: { usable, leftShoulderAngle, rightShoulderAngle,
  *   leftKneeAngle, rightKneeAngle, leftHip: {x,y}, rightHip: {x,y} }, timestamp? }
  * Advances the session when the exercise rules say passed.
+ * May enrich feedback with Gemini (throttled; metrics only — never video).
  */
-app.post("/api/sessions/:id/evaluate", (req, res) => {
+app.post("/api/sessions/:id/evaluate", async (req, res) => {
   const session = sessions.get(req.params.id);
   if (!session) return jsonError(res, 404, "Session not found");
 
   if (session.currentStep >= curriculum.steps.length) {
+    if (!session.summary && geminiConfigured()) {
+      const summary = await sessionSummary({
+        completedSteps: session.completed.map((id) => {
+          const step = curriculum.steps.find((s) => s.id === id);
+          return step ? step.title : id;
+        }),
+        notes: session.coachNotes || [],
+      });
+      session.summary = summary.text;
+    }
     return res.json(
       sessionPayload(session, {
         passed: true,
         inRange: false,
-        feedback: "Routine complete",
+        feedback: session.summary || "Routine complete",
         progress: null,
+        aiEnhanced: Boolean(session.summary),
       })
     );
   }
@@ -263,11 +346,18 @@ app.post("/api/sessions/:id/evaluate", (req, res) => {
     resetExerciseState(session);
   }
 
-  const evaluation = evaluateStep(
+  let evaluation = evaluateStep(
     expected,
     parsed.metrics,
     session.exerciseState,
     nowMs
+  );
+
+  evaluation = await enrichWithGemini(
+    session,
+    expected,
+    evaluation,
+    parsed.metrics
   );
 
   if (evaluation.passed) {
@@ -276,13 +366,98 @@ app.post("/api/sessions/:id/evaluate", (req, res) => {
     }
     session.currentStep += 1;
     resetExerciseState(session);
+
+    if (session.currentStep >= curriculum.steps.length) {
+      const summary = await sessionSummary({
+        completedSteps: session.completed.map((id) => {
+          const step = curriculum.steps.find((s) => s.id === id);
+          return step ? step.title : id;
+        }),
+        notes: session.coachNotes || [],
+      });
+      session.summary = summary.text;
+      evaluation.feedback = summary.text;
+      evaluation.aiEnhanced = summary.aiEnhanced;
+    }
   }
 
   res.json(sessionPayload(session, evaluation));
 });
 
+/**
+ * Explicit Gemini tip refresh for demos/judges.
+ * Body: { stepId, metrics }
+ */
+app.post("/api/sessions/:id/coach", async (req, res) => {
+  const session = sessions.get(req.params.id);
+  if (!session) return jsonError(res, 404, "Session not found");
+
+  const { stepId, metrics: rawMetrics } = req.body || {};
+  if (typeof stepId !== "string" || !stepId.trim()) {
+    return jsonError(res, 400, "stepId must be a non-empty string");
+  }
+
+  const step =
+    curriculum.steps.find((s) => s.id === stepId) ||
+    getStep(session.currentStep);
+  if (!step) return jsonError(res, 404, "Step not found");
+
+  const parsed = parseMetrics(rawMetrics || { usable: true });
+  if (!parsed.ok) return jsonError(res, 400, parsed.error);
+
+  const evaluation = {
+    passed: false,
+    inRange: false,
+    feedback: step.instruction,
+    progress: null,
+  };
+
+  // Force a Gemini call for this endpoint
+  session.lastGeminiAt = 0;
+  session.lastGeminiFeedbackKey = "";
+  const tip = await coachTip({
+    step,
+    evaluation,
+    metrics: parsed.metrics,
+  });
+
+  session.lastGeminiAt = Date.now();
+  if (tip.aiEnhanced && tip.text) {
+    if (!session.coachNotes) session.coachNotes = [];
+    session.coachNotes.push(tip.text);
+  }
+
+  res.json({
+    tip: tip.text,
+    aiEnhanced: tip.aiEnhanced,
+    gemini: { configured: geminiConfigured(), model: GEMINI_MODEL },
+    step: { id: step.id, title: step.title, exercise: step.exercise },
+  });
+});
+
+function cleanBuddyText(value, label) {
+  if (typeof value !== "string") {
+    return { ok: false, error: `${label} must be a non-empty string` };
+  }
+  // Strip tags, collapse whitespace, trim
+  const cleaned = value
+    .replace(/<[^>]*>/g, " ")
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) {
+    return { ok: false, error: `${label} must be a non-empty string` };
+  }
+  if (cleaned.length > MAX_BUDDY_FIELD) {
+    return {
+      ok: false,
+      error: `${label} must be at most ${MAX_BUDDY_FIELD} characters`,
+    };
+  }
+  return { ok: true, value: cleaned };
+}
+
 app.get("/api/programs", (_req, res) => {
-  // Placeholder Calgary listings — verify before public use (see data/programs.json).
   res.json(programs);
 });
 
@@ -292,15 +467,11 @@ app.get("/api/buddies", (_req, res) => {
 
 app.post("/api/buddies", (req, res) => {
   const { name, area, time, note, lat, lng } = req.body || {};
-  const fields = { name, area, time, note };
-
-  for (const [key, value] of Object.entries(fields)) {
-    if (typeof value !== "string" || !value.trim()) {
-      return jsonError(res, 400, `${key} must be a non-empty string`);
-    }
-    if (value.trim().length > MAX_BUDDY_FIELD) {
-      return jsonError(res, 400, `${key} must be at most ${MAX_BUDDY_FIELD} characters`);
-    }
+  const cleaned = {};
+  for (const key of ["name", "area", "time", "note"]) {
+    const result = cleanBuddyText(req.body?.[key], key);
+    if (!result.ok) return jsonError(res, 400, result.error);
+    cleaned[key] = result.value;
   }
 
   const latParsed = parseOptionalCoord(lat, "lat");
@@ -325,10 +496,10 @@ app.post("/api/buddies", (req, res) => {
 
   const post = {
     id: crypto.randomUUID(),
-    name: name.trim(),
-    area: area.trim(),
-    time: time.trim(),
-    note: note.trim(),
+    name: cleaned.name,
+    area: cleaned.area,
+    time: cleaned.time,
+    note: cleaned.note,
     lat: latParsed.value,
     lng: lngParsed.value,
     createdAt: new Date().toISOString(),

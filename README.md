@@ -9,6 +9,8 @@ Pose video never leaves the browser. The server only stores session progress and
 ```bash
 cd backend
 npm install
+copy .env.example .env
+# put GEMINI_API_KEY in .env (optional — app works without it)
 npm start
 ```
 
@@ -17,6 +19,26 @@ Map: http://localhost:3000/map.html
 API viewer: http://localhost:3000/viewer.html
 
 On first start the backend syncs Calgary recreation facilities from [Open Calgary](https://data.calgary.ca/resource/hxfu-6d96.json) into a local SQLite cache (`backend/data/joint-effort.sqlite`), then merges curated programs and walking-buddy pins.
+
+## Gemini coaching (MLH / Best Use of Gemini API)
+
+**Pose video never leaves the browser.** Gemini only receives numeric angles, reps/phase, and curriculum text, then returns short coaching tips and an end-of-routine summary.
+
+1. Create a key at [Google AI Studio](https://aistudio.google.com/apikey)
+2. Set `GEMINI_API_KEY` in `backend/.env`
+3. Restart the server — `/api/health` shows `"gemini": { "configured": true }`
+
+Tips are throttled (~every 4s, or when feedback changes / a step passes). Without a key, rule-based feedback still works.
+
+Demo tip endpoint:
+
+```bash
+curl -X POST http://localhost:3000/api/sessions/SESSION_ID/coach ^
+  -H "Content-Type: application/json" ^
+  -d "{\"stepId\":\"step-1-arm-raise\",\"metrics\":{\"usable\":true,\"leftShoulderAngle\":60,\"rightShoulderAngle\":90}}"
+```
+
+Auth0 (user accounts) is handled separately by a teammate and is not required for Gemini.
 
 ## Pose coach (camera)
 

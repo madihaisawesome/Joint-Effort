@@ -1,11 +1,39 @@
 .pose-page {
   min-height: 100vh;
+  padding-bottom: 5.5rem;
+  font-size: 1.05rem;
+  color: #101820;
+  background: #f0f3f5;
+}
+
+.safety-banner {
+  width: min(1100px, calc(100% - 1.5rem));
+  margin: 0.75rem auto 0;
+  padding: 0.85rem 1rem;
+  background: #fff8e8;
+  border: 2px solid #c47a2c;
+  color: #5c3208;
+}
+
+.safety-banner p {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.45;
+}
+
+.safety-banner p + p {
+  margin-top: 0.45rem;
+}
+
+.privacy-line {
+  font-weight: 700;
+  color: #152028;
 }
 
 .pose-header {
   width: min(1100px, calc(100% - 1.5rem));
   margin: 0 auto;
-  padding: 1.25rem 0 0.5rem;
+  padding: 1rem 0 0.5rem;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -14,102 +42,187 @@
 
 .pose-header h1 {
   margin: 0;
-  font-size: 1.6rem;
+  font-size: clamp(1.6rem, 4vw, 2rem);
+  color: #0b1520;
 }
 
 .pose-header p {
-  margin: 0.2rem 0 0;
-  color: var(--muted);
+  margin: 0.25rem 0 0;
+  color: #3a4650;
+  font-size: 1.05rem;
 }
 
 .pose-nav {
   display: flex;
-  gap: 0.65rem;
+  gap: 0.55rem;
   align-items: center;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.pose-nav a {
-  color: var(--accent);
-  text-decoration: none;
-  font-weight: 600;
+.nav-link {
+  color: #0d4f7a;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  padding: 0.45rem 0.35rem;
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-stop,
+button {
+  font: inherit;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+  min-height: 3rem;
+  padding: 0.7rem 1.1rem;
+  border: 2px solid #0d4f7a;
+  transition: none;
+}
+
+.btn-primary {
+  background: #0d4f7a;
+  color: #ffffff;
+}
+
+.btn-secondary {
+  background: #ffffff;
+  color: #0d4f7a;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-stop {
+  background: #8b1e1e;
+  border-color: #5c1010;
+  color: #ffffff;
+  font-size: 1.15rem;
+  min-width: 10rem;
+}
+
+.stop-bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+  padding: 0.65rem 0.85rem;
+  background: #ffffff;
+  border-bottom: 2px solid #cfd8de;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+
+.stop-hint {
+  color: #3a4650;
+  font-size: 1rem;
 }
 
 .status-line {
   width: min(1100px, calc(100% - 1.5rem));
-  margin: 0.5rem auto 0.35rem;
-  padding: 0.45rem 0.7rem;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  font-size: 0.95rem;
+  margin: 0.65rem auto 0.35rem;
+  padding: 0.55rem 0.8rem;
+  border: 2px solid #cfd8de;
+  background: #ffffff;
+  font-size: 1.05rem;
 }
 
 .status-line.ok {
-  border-color: #9ec9b8;
+  border-color: #2f7d4a;
 }
 
 .status-line.warn {
-  border-color: #e0b39a;
-  color: var(--warn);
+  border-color: #8a3b12;
+  color: #8a3b12;
 }
 
 .step-card {
   width: min(1100px, calc(100% - 1.5rem));
   margin: 0.5rem auto 0.65rem;
-  padding: 0.85rem 1rem;
-  background: var(--panel);
-  border: 1px solid var(--line);
+  padding: 1rem 1.1rem;
+  background: #ffffff;
+  border: 2px solid #cfd8de;
 }
 
 .step-card h2 {
-  margin: 0.15rem 0 0.35rem;
-  font-size: 1.25rem;
+  margin: 0.15rem 0 0.4rem;
+  font-size: clamp(1.3rem, 3.5vw, 1.6rem);
+  color: #0b1520;
 }
 
 .step-card #step-instruction {
   margin: 0;
-  color: var(--muted);
+  color: #3a4650;
+  font-size: 1.08rem;
+  line-height: 1.5;
 }
 
 .step-card.complete {
-  border-color: #9ec9b8;
+  border-color: #2f7d4a;
 }
 
 .hold-progress {
-  margin: 0.55rem 0 0;
+  margin: 0.65rem 0 0;
   font-family: Consolas, "Courier New", monospace;
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 1.1rem;
 }
 
-.hold-progress[hidden] {
+.hold-progress[hidden],
+.session-summary[hidden],
+.ai-badge[hidden],
+.guidance[hidden] {
   display: none;
+}
+
+.session-summary {
+  margin: 0.75rem 0 0;
+  padding: 0.75rem 0.85rem;
+  background: #e8f6ee;
+  border: 2px solid #2f7d4a;
+  color: #14532d;
+  line-height: 1.45;
+  font-size: 1.05rem;
+}
+
+.ai-badge {
+  width: min(1100px, calc(100% - 1.5rem));
+  margin: 0 auto 0.5rem;
+  font-size: 0.95rem;
+  color: #3a4650;
 }
 
 .guidance {
   width: min(1100px, calc(100% - 1.5rem));
   margin: 0 auto 0.75rem;
-  padding: 0.55rem 0.75rem;
+  padding: 0.75rem 0.9rem;
   background: #fff6e8;
-  border: 1px solid #e0b39a;
-  color: var(--warn);
-  font-weight: 600;
+  border: 2px solid #c47a2c;
+  color: #5c3208;
+  font-weight: 700;
+  font-size: 1.12rem;
+  line-height: 1.4;
 }
 
 .guidance.ok {
-  background: #eef8f2;
-  border-color: #9ec9b8;
-  color: #1f6b4a;
-}
-
-.guidance[hidden] {
-  display: none;
+  background: #e8f6ee;
+  border-color: #2f7d4a;
+  color: #14532d;
 }
 
 .pose-layout {
   width: min(1100px, calc(100% - 1.5rem));
   margin: 0 auto 1.5rem;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 240px;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 260px);
   gap: 1rem;
   align-items: start;
 }
@@ -119,9 +232,8 @@
   width: 100%;
   aspect-ratio: 4 / 3;
   background: #101820;
-  border: 1px solid var(--line);
+  border: 2px solid #cfd8de;
   overflow: hidden;
-  /* Mirror for selfie alignment so skeleton matches the mirrored camera feed */
   transform: scaleX(-1);
 }
 
@@ -139,50 +251,167 @@
 }
 
 .debug-panel {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  padding: 0.9rem 1rem;
+  background: #ffffff;
+  border: 2px solid #cfd8de;
+  padding: 1rem;
 }
 
 .debug-panel h2 {
   margin: 0 0 0.75rem;
-  font-size: 1rem;
+  font-size: 1.15rem;
 }
 
 .debug-panel dl {
   margin: 0;
   display: grid;
-  gap: 0.65rem;
+  gap: 0.7rem;
 }
 
 .debug-panel dl > div {
   display: flex;
   justify-content: space-between;
   gap: 0.75rem;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #cfd8de;
+  padding-bottom: 0.45rem;
 }
 
 .debug-panel dt {
-  color: var(--muted);
-  font-size: 0.85rem;
+  color: #3a4650;
+  font-size: 1rem;
 }
 
 .debug-panel dd {
   margin: 0;
   font-variant-numeric: tabular-nums;
   font-family: Consolas, "Courier New", monospace;
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 1.1rem;
 }
 
-.debug-panel .meta {
-  margin: 0.85rem 0 0;
-  font-size: 0.82rem;
-  color: var(--muted);
+.debug-panel .meta,
+.meta {
+  color: #3a4650;
+  font-size: 1rem;
+}
+
+.community {
+  width: min(1100px, calc(100% - 1.5rem));
+  margin: 0 auto 2rem;
+  padding: 1.1rem;
+  background: #ffffff;
+  border: 2px solid #cfd8de;
+}
+
+.community h2 {
+  margin: 0 0 0.45rem;
+  font-size: 1.35rem;
+}
+
+.community h2 + .meta {
+  margin-bottom: 0.85rem;
+}
+
+.programs-list {
+  display: grid;
+  gap: 0.85rem;
+  margin-bottom: 1.75rem;
+}
+
+.program-card {
+  padding: 0.9rem 1rem;
+  border: 2px solid #cfd8de;
+  background: #f7fafb;
+}
+
+.program-card h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1.15rem;
+}
+
+.prog-type {
+  margin: 0 0 0.4rem;
+  color: #0d4f7a;
+  font-weight: 700;
+}
+
+.prog-meta {
+  margin: 0.25rem 0;
+  color: #3a4650;
+}
+
+.prog-link {
+  display: inline-block;
+  margin-top: 0.45rem;
+  font-weight: 700;
+  color: #0d4f7a;
+  font-size: 1.05rem;
+}
+
+.buddy-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.buddy-form label {
+  display: grid;
+  gap: 0.3rem;
+  font-weight: 700;
+  color: #152028;
+}
+
+.buddy-form .span-2 {
+  grid-column: 1 / -1;
+}
+
+.buddy-form input {
+  font: inherit;
+  font-weight: 500;
+  min-height: 3rem;
+  padding: 0.55rem 0.7rem;
+  border: 2px solid #cfd8de;
+  background: #ffffff;
+  color: #101820;
+}
+
+.buddies-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 1.05rem;
+  line-height: 1.45;
+}
+
+.buddies-list li + li {
+  margin-top: 0.75rem;
 }
 
 @media (max-width: 800px) {
   .pose-layout {
     grid-template-columns: 1fr;
+  }
+
+  .buddy-form {
+    grid-template-columns: 1fr;
+  }
+
+  .pose-header {
+    flex-direction: column;
+  }
+
+  .stop-bar {
+    position: sticky;
+    top: 0;
+  }
+
+  .btn-stop {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
   }
 }

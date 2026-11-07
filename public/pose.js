@@ -48,6 +48,8 @@ const stepLabel = document.getElementById("step-label");
 const stepTitle = document.getElementById("step-title");
 const stepInstruction = document.getElementById("step-instruction");
 const holdProgress = document.getElementById("hold-progress");
+const sessionSummaryEl = document.getElementById("session-summary");
+const aiBadge = document.getElementById("ai-badge");
 
 const angleEls = {
   leftShoulder: document.getElementById("angle-l-shoulder"),
@@ -96,16 +98,21 @@ function setStatus() {
   statusEl.className = `status-line ${modelLoaded && cameraRunning ? "ok" : ""}`;
 }
 
-function setGuidance(message, ok = false) {
+function setGuidance(message, ok = false, aiEnhanced = false) {
   if (!message) {
     guidanceEl.hidden = true;
     guidanceEl.textContent = "";
     guidanceEl.classList.remove("ok");
+    if (aiBadge) aiBadge.hidden = true;
     return;
   }
   guidanceEl.hidden = false;
   guidanceEl.textContent = message;
   guidanceEl.classList.toggle("ok", Boolean(ok));
+  if (aiBadge) {
+    aiBadge.hidden = !aiEnhanced;
+    aiBadge.textContent = aiEnhanced ? "Gemini tip" : "";
+  }
 }
 
 function clearAngles() {
@@ -202,7 +209,7 @@ function assessVisibility(landmarks) {
   return { ok: true, reason: null };
 }
 
-function renderStep() {
+function renderStep(summaryText) {
   if (routineDone || !nextStep) {
     stepCard.classList.add("complete");
     stepLabel.textContent = "All done";
@@ -211,11 +218,24 @@ function renderStep() {
       "Nice work — you’ve finished every step in this session.";
     holdProgress.hidden = true;
     skipBtn.disabled = true;
-    setGuidance("Routine complete", true);
+    if (sessionSummaryEl) {
+      if (summaryText) {
+        sessionSummaryEl.hidden = false;
+        sessionSummaryEl.textContent = summaryText;
+      } else {
+        sessionSummaryEl.hidden = true;
+        sessionSummaryEl.textContent = "";
+      }
+    }
+    setGuidance(summaryText || "Routine complete", true, Boolean(summaryText));
     return;
   }
 
   stepCard.classList.remove("complete");
+  if (sessionSummaryEl) {
+    sessionSummaryEl.hidden = true;
+    sessionSummaryEl.textContent = "";
+  }
   const index = (session?.currentStep ?? 0) + 1;
   stepLabel.textContent = `Step ${index} · ${nextStep.exercise}`;
   stepTitle.textContent = nextStep.title;
@@ -227,16 +247,34 @@ function applySessionPayload(data) {
   session = data.session;
   nextStep = data.nextStep;
   routineDone = Boolean(data.done) || !data.nextStep;
-  renderStep();
+  const summaryText = data.summary || data.evaluation?.feedback || null;
+  renderStep(routineDone ? summaryText : null);
 
   const evaluation = data.evaluation;
   if (!evaluation) return;
 
+  if (routineDone) {
+    setGuidance(
+      data.summary || evaluation.feedback || "Routine complete",
+      true,
+      Boolean(evaluation.aiEnhanced || data.summary)
+    );
+    return;
+  }
+
   if (evaluation.passed) {
-    setGuidance(evaluation.feedback || "Step complete", true);
+    setGuidance(
+      evaluation.feedback || "Step complete",
+      true,
+      Boolean(evaluation.aiEnhanced)
+    );
   } else if (evaluation.feedback) {
     const isStepBack = /step back/i.test(evaluation.feedback);
-    setGuidance(evaluation.feedback, Boolean(evaluation.inRange) && !isStepBack);
+    setGuidance(
+      evaluation.feedback,
+      Boolean(evaluation.inRange) && !isStepBack,
+      Boolean(evaluation.aiEnhanced)
+    );
   }
 
   const progress = evaluation.progress;
@@ -350,7 +388,6 @@ function stopCamera() {
   video.srcObject = null;
   cameraRunning = false;
   poseDetected = false;
-  stopBtn.disabled = true;
   skipBtn.disabled = true;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   clearAngles();
@@ -380,7 +417,6 @@ async function startCamera() {
     video.srcObject = stream;
     await video.play();
     cameraRunning = true;
-    stopBtn.disabled = false;
     skipBtn.disabled = !session || routineDone;
     setStatus();
     lastVideoTime = -1;

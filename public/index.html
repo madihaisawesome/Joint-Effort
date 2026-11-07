@@ -8,18 +8,38 @@
     <link rel="stylesheet" href="/pose.css" />
   </head>
   <body class="pose-page">
+    <div class="safety-banner" role="note">
+      <p>
+        <strong>Not medical advice.</strong> Stop if you feel pain, dizziness,
+        or unusual shortness of breath. Talk to a clinician before starting a
+        new exercise routine.
+      </p>
+      <p class="privacy-line">
+        Privacy: camera video stays on your device and is never uploaded.
+      </p>
+    </div>
+
     <header class="pose-header">
       <div>
         <h1>Joint Effort</h1>
-        <p>On-device pose coach — video stays in your browser</p>
+        <p>Gentle on-device pose coach for Calgary movers</p>
       </div>
-      <nav class="pose-nav">
-        <a href="/map.html">Map</a>
-        <a href="/viewer.html">API viewer</a>
-        <button type="button" id="skip-step" disabled>Skip step</button>
-        <button type="button" id="stop-camera" disabled>Stop camera</button>
+      <nav class="pose-nav" aria-label="Site">
+        <a class="nav-link" href="#community">Community</a>
+        <a class="nav-link" href="/map.html">Map</a>
+        <a class="nav-link" href="/viewer.html">API</a>
+        <button type="button" class="btn-secondary" id="skip-step" disabled>
+          Skip step
+        </button>
       </nav>
     </header>
+
+    <div class="stop-bar" role="region" aria-label="Camera controls">
+      <button type="button" class="btn-stop" id="stop-camera">
+        Stop camera
+      </button>
+      <span class="stop-hint">Always available — releases the webcam</span>
+    </div>
 
     <p id="status" class="status-line" role="status">Loading model…</p>
 
@@ -28,9 +48,11 @@
       <h2 id="step-title">—</h2>
       <p id="step-instruction"></p>
       <p id="hold-progress" class="hold-progress" hidden></p>
+      <p id="session-summary" class="session-summary" hidden></p>
     </section>
 
     <p id="guidance" class="guidance" hidden></p>
+    <p id="ai-badge" class="ai-badge" hidden>Gemini tip</p>
 
     <div class="pose-layout">
       <div class="stage">
@@ -64,6 +86,54 @@
       </aside>
     </div>
 
+    <section id="community" class="community" aria-label="Community extras">
+      <h2>Nearby Calgary programs</h2>
+      <p class="meta" id="programs-note">Loading verified listings…</p>
+      <div id="programs-list" class="programs-list"></div>
+
+      <h2>Walking buddy board</h2>
+      <p class="meta">
+        Post a gentle walk invite. Keep notes short (200 characters max).
+      </p>
+      <form id="buddy-form" class="buddy-form">
+        <label>
+          Name
+          <input name="name" required maxlength="200" autocomplete="nickname" />
+        </label>
+        <label>
+          Area
+          <input
+            name="area"
+            required
+            maxlength="200"
+            placeholder="e.g. Beltline"
+          />
+        </label>
+        <label>
+          Time
+          <input
+            name="time"
+            required
+            maxlength="200"
+            placeholder="e.g. Tue 10am"
+          />
+        </label>
+        <label class="span-2">
+          Note
+          <input
+            name="note"
+            required
+            maxlength="200"
+            placeholder="Slow pace welcome"
+          />
+        </label>
+        <button type="submit" class="btn-primary">Post buddy invite</button>
+      </form>
+      <p id="buddy-status" class="meta" role="status"></p>
+      <ul id="buddies-list" class="buddies-list"></ul>
+    </section>
+
     <script type="module" src="/pose.js"></script>
+    <script type="module" src="/community.js"></script>
   </body>
 </html>
