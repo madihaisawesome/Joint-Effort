@@ -12,7 +12,6 @@ import chevronLeft from "../assets/profile/chevron-left.svg"
 import iconUser from "../assets/profile/icon-user.svg"
 import iconActivity from "../assets/profile/icon-activity.svg"
 import iconCalendar from "../assets/profile/icon-calendar.svg"
-import iconAccess from "../assets/profile/icon-access.svg"
 
 const connections = [
   { name: "Joan T.", note: "Walk buddy", photo: connection1 },
@@ -52,10 +51,6 @@ export default function Profile() {
             <img src={iconCalendar} alt="" width="24" height="24" />
             Calendar
           </NavLink>
-          <a href="#accessibility">
-            <img src={iconAccess} alt="" width="24" height="24" />
-            Accessibility
-          </a>
         </nav>
         <button className="profile-logout" type="button" onClick={logout}>
           Log Out

@@ -1,12 +1,11 @@
 import { Link } from "react-router-dom"
 import { useAuth } from "../context/Auth.jsx"
 import { useCurriculum } from "../context/Curriculum.jsx"
-import hero from "../assets/hero.png"
+import hero from "../assets/home-pagebanner2.jpg"
 import portrait1 from "../assets/portrait-1.png"
 import portrait2 from "../assets/portrait-2.png"
 import portrait3 from "../assets/portrait-3.png"
 import arrow from "../assets/arrow-right.svg"
-import phone from "../assets/phone.svg"
 import star from "../assets/star.svg"
 import { usePageTitle } from "../lib/title.js"
 
@@ -35,10 +34,6 @@ export default function Home() {
                 Open camera coach
                 <img src={arrow} alt="" width="34" height="34" />
               </Link>
-              <Link className="text-link" to="/activity">
-                <img src={phone} alt="" width="35" height="35" />
-                Post an activity invite
-              </Link>
               {isAuthenticated ? (
                 <Link className="text-link" to="/calendar">
                   Open calendar
@@ -55,13 +50,12 @@ export default function Home() {
               </div>
               <p className="trust-line">
                 <img src={star} alt="" width="26" height="26" />
-                Near campus
+                Near you
               </p>
             </div>
             <span className="trust-rule" aria-hidden="true" />
             <p className="trust-stat">
-              <span>Campus</span>
-              <span>Community nearby</span>
+              <span>YYC</span>
             </p>
           </div>
         </div>

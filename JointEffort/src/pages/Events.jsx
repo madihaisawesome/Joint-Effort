@@ -17,11 +17,13 @@ import iconAccess from "../assets/icon-access.svg"
 import iconPin from "../assets/icon-pin.svg"
 import iconArrowLight from "../assets/icon-arrow-light.svg"
 import iconArrowDark from "../assets/icon-arrow-dark.svg"
-import photoWalk from "../assets/event-1.png"
-import photoPaint from "../assets/event-2.png"
-import photoGather from "../assets/event-3.png"
+import photoWalk from "../assets/image.png"
+import photoPaint from "../assets/image2.png"
+import photoGather from "../assets/image3.png"
+import photoOval from "../assets/event-1.png"
+import photoPark from "../assets/event-3.png"
 
-const programPhotos = [photoWalk, photoPaint, photoGather]
+const programPhotos = [photoWalk, photoPaint, photoGather, photoOval, photoPark]
 
 function programToEvent(program, index) {
   return {

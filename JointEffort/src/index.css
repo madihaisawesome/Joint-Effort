@@ -471,10 +471,37 @@ html[data-contrast="high"] .hero h1 { color: #ffffff; }
   font-weight: 700;
   line-height: 1.1;
 }
-.trust-stat span:last-child {
+.trust-stat span:last-child:not(:first-child) {
   font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: -0.04em;
+}
+
+.about-page {
+  display: flex;
+  align-items: center;
+  gap: 3rem;
+  width: min(78rem, calc(100% - 4rem));
+  margin: 2.5rem auto 4rem;
+}
+
+.about-copy { flex: 1 1 22rem; min-width: 0; }
+
+.about-copy h1 {
+  font-family: var(--serif);
+  font-size: clamp(2.4rem, 4vw, 3.6rem);
+  line-height: 1.1;
+  margin: 0 0 1rem;
+}
+
+.about-copy p { font-size: 1.25rem; margin: 0 0 1rem; max-width: 40rem; }
+
+.about-photo {
+  flex: 1.6 1 36rem;
+  width: min(42rem, 100%);
+  height: auto;
+  border-radius: 1.5rem;
+  object-fit: cover;
 }
 
 .page-narrow {
@@ -1826,6 +1853,7 @@ html[data-contrast="high"] .pose-guidance {
   .hero { min-height: 36rem; padding: 4rem 1.25rem 3rem; }
   .hero h1 { font-size: clamp(2.6rem, 8vw, 4.94rem); margin-bottom: 1.5rem; }
   .hero-row { flex-direction: column; align-items: flex-start; }
+  .about-page { flex-direction: column; align-items: stretch; width: min(46rem, calc(100% - 2.5rem)); }
   .map-preview { grid-template-columns: 1fr; }
   .pose-layout { grid-template-columns: 1fr; }
   .camera-page { width: min(72rem, calc(100% - 2.5rem)); }

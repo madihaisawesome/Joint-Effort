@@ -1,6 +1,8 @@
-import photoWalk from "../assets/event-1.png"
-import photoPaint from "../assets/event-2.png"
-import photoGather from "../assets/event-3.png"
+import photoWalk from "../assets/image.png"
+import photoPaint from "../assets/image2.png"
+import photoGather from "../assets/image3.png"
+import photoOval from "../assets/event-1.png"
+import photoPark from "../assets/event-3.png"
 import { toISODate } from "../lib/dates.js"
 
 function upcoming(weekday) {
@@ -78,7 +80,7 @@ export const events = [
     start: "09:00",
     end: "10:00",
     kind: "park",
-    image: photoWalk,
+    image: photoOval,
     summary: "A meetup at Confederation Park, 14 Street and 24 Avenue NW.",
     summaryLong:
       "This demo meetup is at Confederation Park, at 14 Street and 24 Avenue NW. The time is a sample label. Pathways run through the park, and washrooms are seasonal.",
@@ -96,7 +98,7 @@ export const events = [
     start: "13:00",
     end: "14:00",
     kind: "park",
-    image: photoPaint,
+    image: photoPark,
     summary: "A meetup at West Confederation Park, 2020 Chicoutimi Drive NW.",
     summaryLong:
       "This demo meetup is at West Confederation Park, 2020 Chicoutimi Drive NW. The time is a sample label, not a live schedule.",
