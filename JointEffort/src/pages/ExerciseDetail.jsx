@@ -6,7 +6,7 @@ import { usePageTitle } from "../lib/title.js"
 export default function ExerciseDetail() {
   const { id } = useParams()
   const [params] = useSearchParams()
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, login } = useAuth()
   const { getExercise, status } = useCurriculum()
   const exercise = getExercise(id)
   usePageTitle(exercise?.name || "Exercise")
@@ -35,10 +35,7 @@ export default function ExerciseDetail() {
     ? `/calendar?done=1&workout=${encodeURIComponent(workout)}`
     : `/exercises/${exercise.id}`
   const aiPath = `/ai?exercise=${encodeURIComponent(exercise.id)}&returnTo=${encodeURIComponent(back)}`
-  const cameraHref =
-    !authConfigured || isAuthenticated
-      ? aiPath
-      : `/login?returnTo=${encodeURIComponent(aiPath)}&reason=camera`
+  const needsAccount = authConfigured && !isAuthenticated
 
   return (
     <article className="page-narrow">
@@ -66,9 +63,15 @@ export default function ExerciseDetail() {
         receives joint angles so it can count reps and offer tips.
       </p>
       <div className="button-row">
-        <Link className="pill pill-dark" to={cameraHref}>
-          Open camera coach
-        </Link>
+        {needsAccount ? (
+          <button className="pill pill-dark" type="button" onClick={() => login(aiPath)}>
+            Open camera coach
+          </button>
+        ) : (
+          <Link className="pill pill-dark" to={aiPath}>
+            Open camera coach
+          </Link>
+        )}
         <Link to="/exercises">Back to exercises</Link>
       </div>
     </article>

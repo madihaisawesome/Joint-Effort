@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
-import { Link, useNavigate, useSearchParams } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import EventMap from "../components/EventMap.jsx"
 import { events as demoEvents } from "../data/events.js"
+import { useAuth } from "../context/Auth.jsx"
 import { usePlace } from "../context/Place.jsx"
 import { getBuddies, getPrograms } from "../lib/api.js"
 import { useJoinedInvites } from "../lib/joinedInvites.js"
@@ -80,7 +81,7 @@ function buddyToEvent(post, index) {
 }
 
 export default function Events() {
-  const navigate = useNavigate()
+  const { login } = useAuth()
   const { place, choose, save, saved, status, setStatus } = usePlace()
   const [params, setParams] = useSearchParams()
   const [query, setQuery] = useState("")
@@ -247,7 +248,7 @@ export default function Events() {
 
   function onSave() {
     if (!save()) {
-      navigate(`/login?returnTo=${encodeURIComponent("/events")}&reason=location`)
+      login("/events")
     }
   }
 

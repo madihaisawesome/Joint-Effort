@@ -1,27 +1,26 @@
-import { Navigate, useLocation } from "react-router-dom"
+import { useEffect, useRef } from "react"
+import { useLocation } from "react-router-dom"
 import { authConfigured, useAuth } from "../context/Auth.jsx"
 
-export default function RequireAuth({ reason, children }) {
-  const { isAuthenticated, isLoading } = useAuth()
+export default function RequireAuth({ children }) {
+  const { isAuthenticated, isLoading, login } = useAuth()
   const location = useLocation()
+  const returnTo = `${location.pathname}${location.search}`
+  const started = useRef(false)
+
+  useEffect(() => {
+    if (!authConfigured || isLoading || isAuthenticated || started.current) return
+    started.current = true
+    login(returnTo)
+  }, [isAuthenticated, isLoading, login, returnTo])
 
   // Without Auth0 env vars, keep demo routes open so the backend coach still works.
-  if (!authConfigured) return children
+  if (!authConfigured || isAuthenticated) return children
 
-  if (isLoading) {
-    return (
-      <section className="page-narrow">
-        <h1>Checking your account</h1>
-        <p>One moment while the login check finishes.</p>
-      </section>
-    )
-  }
-
-  if (!isAuthenticated) {
-    const returnTo = `${location.pathname}${location.search}`
-    const params = new URLSearchParams({ returnTo, reason })
-    return <Navigate to={`/login?${params.toString()}`} replace />
-  }
-
-  return children
+  return (
+    <section className="page-narrow">
+      <h1>Checking your account</h1>
+      <p>One moment while Auth0 opens.</p>
+    </section>
+  )
 }

@@ -158,15 +158,10 @@ html[data-detail="on"] .more-detail { display: block; }
 .primary-nav {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1.75rem;
-  width: min(44.8rem, 100%);
-  flex: 1 1 28rem;
-}
-
-.primary-nav.is-guest {
   justify-content: center;
   gap: 2.5rem;
+  width: min(44.8rem, 100%);
+  flex: 1 1 28rem;
   padding-inline: 3.5rem;
 }
 

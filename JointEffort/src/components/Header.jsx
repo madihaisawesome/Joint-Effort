@@ -133,7 +133,7 @@ export function AccessibilityControls() {
 }
 
 export default function Header() {
-  const { isAuthenticated, logout } = useAuth()
+  const { isAuthenticated, login, logout } = useAuth()
   const location = useLocation()
   const links = isAuthenticated ? loggedIn : loggedOut
   const showA11yBar = !isAuthenticated || location.pathname === "/ai"
@@ -152,7 +152,7 @@ export default function Header() {
           <span className="logo-word">JointEffort</span>
         </Link>
         <div className="header-actions">
-          <nav className={isAuthenticated ? "primary-nav" : "primary-nav is-guest"} aria-label="Primary">
+          <nav className="primary-nav" aria-label="Primary">
             {links.map((link) => (
               <NavLink key={link.to} to={link.to} end={link.end}>
                 {link.label}
@@ -164,9 +164,13 @@ export default function Header() {
               Log Out
             </button>
           ) : (
-            <Link className="pill" to="/login">
+            <button
+              className="pill"
+              type="button"
+              onClick={() => login(`${location.pathname}${location.search}`)}
+            >
               Register Now
-            </Link>
+            </button>
           )}
         </div>
       </div>
