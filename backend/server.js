@@ -138,7 +138,10 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.static(path.join(__dirname, "..", "public")));
+// Legacy static assets (models, map.html). index:false so / is the React app.
+app.use(
+  express.static(path.join(__dirname, "..", "public"), { index: false })
+);
 
 function jsonError(res, status, message) {
   return res.status(status).json({ error: message });
@@ -739,13 +742,12 @@ app.post("/api/map/sync", async (_req, res) => {
 });
 
 const spaDir = path.join(__dirname, "..", "JointEffort", "dist");
-if (fs.existsSync(spaDir)) {
-  app.use(express.static(spaDir));
+const spaIndex = path.join(spaDir, "index.html");
+if (fs.existsSync(spaIndex)) {
+  app.use(express.static(spaDir, { index: false }));
   app.get("*", (req, res, next) => {
     if (req.path.startsWith("/api")) return next();
-    const indexHtml = path.join(spaDir, "index.html");
-    if (!fs.existsSync(indexHtml)) return next();
-    res.sendFile(indexHtml);
+    res.sendFile(spaIndex);
   });
 }
 
