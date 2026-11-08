@@ -22,59 +22,77 @@ const loggedIn = [
 ]
 
 const sizes = [
-  { id: "default", label: "Default" },
-  { id: "large", label: "Large" },
-  { id: "largest", label: "Largest" },
+  { id: "default", label: "A" },
+  { id: "large", label: "A+" },
+  { id: "largest", label: "A++" },
 ]
 
 const rates = [
-  { id: 0.8, label: "Slower" },
+  { id: 0.8, label: "Slow" },
   { id: 1, label: "Normal" },
-  { id: 1.25, label: "Faster" },
+  { id: 1.25, label: "Fast" },
 ]
 
 export function AccessibilityControls() {
   const { prefs, setTextSize, setMoreDetail, setContrast, setRate } = usePreferences()
   const speech = useSpeech()
+  const reading = speech.phase === "playing" || speech.phase === "paused"
 
   return (
-    <>
-      <fieldset className="segment">
-        <legend>Text size</legend>
-        <div>
-          {sizes.map((size) => (
-            <button
-              key={size.id}
-              type="button"
-              aria-pressed={prefs.textSize === size.id}
-              onClick={() => setTextSize(size.id)}
-            >
-              {size.label}
-            </button>
-          ))}
+    <div className="a11y-groups">
+      <section className="a11y-group" aria-labelledby="a11y-display-label">
+        <h3 className="a11y-group-label" id="a11y-display-label">
+          Display
+        </h3>
+        <div className="a11y-group-row">
+          <fieldset className="segment">
+            <legend className="visually-hidden">Text size</legend>
+            <div role="group" aria-label="Text size">
+              {sizes.map((size) => (
+                <button
+                  key={size.id}
+                  type="button"
+                  title={
+                    size.id === "default" ? "Default text" : size.id === "large" ? "Large text" : "Largest text"
+                  }
+                  aria-label={
+                    size.id === "default" ? "Default text" : size.id === "large" ? "Large text" : "Largest text"
+                  }
+                  aria-pressed={prefs.textSize === size.id}
+                  onClick={() => setTextSize(size.id)}
+                >
+                  {size.label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          <button
+            className="text-toggle"
+            type="button"
+            aria-pressed={prefs.moreDetail}
+            onClick={() => setMoreDetail(!prefs.moreDetail)}
+          >
+            More detail
+          </button>
+          <button
+            className="text-toggle"
+            type="button"
+            aria-pressed={prefs.contrast}
+            onClick={() => setContrast(!prefs.contrast)}
+          >
+            High contrast
+          </button>
         </div>
-      </fieldset>
-      <button
-        className="text-toggle"
-        type="button"
-        aria-pressed={prefs.moreDetail}
-        onClick={() => setMoreDetail(!prefs.moreDetail)}
-      >
-        More detail
-      </button>
-      <button
-        className="text-toggle"
-        type="button"
-        aria-pressed={prefs.contrast}
-        onClick={() => setContrast(!prefs.contrast)}
-      >
-        High contrast
-      </button>
-      <div className="speech-controls">
+      </section>
+
+      <section className="a11y-group" aria-labelledby="a11y-speech-label">
+        <h3 className="a11y-group-label" id="a11y-speech-label">
+          Read aloud
+        </h3>
         {speech.unavailable ? (
-          <p>Read-aloud is unavailable.</p>
+          <p className="a11y-note">Read-aloud is unavailable in this browser.</p>
         ) : (
-          <>
+          <div className="a11y-group-row speech-controls">
             <button type="button" onClick={speech.play}>
               {speech.phase === "paused" ? "Resume" : "Play"}
             </button>
@@ -84,9 +102,9 @@ export function AccessibilityControls() {
             <button type="button" onClick={speech.stop} disabled={speech.phase === "idle"}>
               Stop
             </button>
-            <fieldset className="segment">
-              <legend>Speed</legend>
-              <div>
+            <fieldset className="segment speech-speed">
+              <legend className="visually-hidden">Reading speed</legend>
+              <div role="group" aria-label="Reading speed">
                 {rates.map((rate) => (
                   <button
                     key={rate.label}
@@ -100,14 +118,17 @@ export function AccessibilityControls() {
               </div>
             </fieldset>
             {speech.cameraPage ? (
-              <p className="speech-now">Reads the coaching steps and tips on this page.</p>
+              <p className="a11y-note">On this page, the coach speaks the steps for you.</p>
             ) : null}
-            {speech.voiceName ? <p className="speech-now">Voice: {speech.voiceName}</p> : null}
-            {speech.snippet ? <p className="speech-now">Reading: {speech.snippet}</p> : null}
-          </>
+            {reading && speech.snippet ? (
+              <p className="speech-now" aria-live="polite">
+                Reading: {speech.snippet}
+              </p>
+            ) : null}
+          </div>
         )}
-      </div>
-    </>
+      </section>
+    </div>
   )
 }
 
@@ -150,7 +171,7 @@ export default function Header() {
         </div>
       </div>
       {showA11yBar ? (
-        <div className="a11y-bar">
+        <div className="a11y-bar" aria-label="Accessibility controls">
           <AccessibilityControls />
         </div>
       ) : null}
