@@ -1,0 +1,309 @@
+import { useMemo, useState } from "react"
+import { useNavigate, useSearchParams } from "react-router-dom"
+import EventMap from "../components/EventMap.jsx"
+import { events } from "../data/events.js"
+import { usePlace } from "../context/Place.jsx"
+import { addDays, formatWhen, todayISO } from "../lib/dates.js"
+import { formatKm, kmBetween, searchPlaces } from "../lib/geo.js"
+import { usePageTitle } from "../lib/title.js"
+import iconSearch from "../assets/icon-search.svg"
+import iconLocate from "../assets/icon-locate.svg"
+import iconCalendar from "../assets/icon-calendar.svg"
+import iconSliders from "../assets/icon-sliders.svg"
+import iconAccess from "../assets/icon-access.svg"
+import iconPin from "../assets/icon-pin.svg"
+import iconArrowLight from "../assets/icon-arrow-light.svg"
+import iconArrowDark from "../assets/icon-arrow-dark.svg"
+
+export default function Events() {
+  const navigate = useNavigate()
+  const { place, choose, save, saved, status, setStatus } = usePlace()
+  const [params, setParams] = useSearchParams()
+  const [query, setQuery] = useState("")
+  const [results, setResults] = useState([])
+  const [searchError, setSearchError] = useState("")
+  const [searching, setSearching] = useState(false)
+  const [when, setWhen] = useState("7")
+  const [kind, setKind] = useState("all")
+  const [access, setAccess] = useState("any")
+  const [radius, setRadius] = useState("25")
+  const [sort, setSort] = useState("soon")
+  const [openId, setOpenId] = useState("")
+  const [announce, setAnnounce] = useState("")
+  usePageTitle("Community events")
+
+  const filtered = useMemo(() => {
+    const today = todayISO()
+    const limit = when === "any" ? null : addDays(today, when === "7" ? 6 : 29)
+    const rows = events
+      .map((event) => ({ ...event, distance: kmBetween(place, event) }))
+      .filter((event) => event.distance <= Number(radius))
+      .filter((event) => (limit ? event.date >= today && event.date <= limit : true))
+      .filter((event) => (kind === "all" ? true : event.kind === kind))
+      .filter((event) => (access === "any" ? true : event.accessTags.includes(access)))
+    rows.sort((a, b) => {
+      if (sort === "close") return a.distance - b.distance
+      return `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`)
+    })
+    return rows
+  }, [access, kind, place, radius, sort, when])
+
+  const requested = params.get("event")
+  const selectedId = filtered.some((event) => event.id === requested)
+    ? requested
+    : filtered[0]?.id || ""
+
+  function selectEvent(id, source) {
+    const event = filtered.find((item) => item.id === id)
+    if (!event) return
+    const next = new URLSearchParams(params)
+    next.set("event", id)
+    setParams(next, { replace: true })
+    setAnnounce(`${event.name}. Community event.`)
+    if (source === "map") {
+      window.requestAnimationFrame(() => {
+        document.getElementById(`event-${id}`)?.focus()
+      })
+    }
+  }
+
+  async function onSearch(event) {
+    event.preventDefault()
+    setSearchError("")
+    setResults([])
+    const term = query.trim()
+    if (!term) {
+      setSearchError("Type a place name, then search.")
+      return
+    }
+    setSearching(true)
+    try {
+      const found = await searchPlaces(term)
+      if (!found.length) {
+        setSearchError("No place matched that name. Try a street, park, or campus name.")
+      }
+      setResults(found)
+    } catch {
+      setSearchError("Place search is unavailable right now. The map is still on the current location.")
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  function useMyLocation() {
+    if (!navigator.geolocation) {
+      setStatus("This browser cannot share a location. The map stays on the current place.")
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        choose({
+          label: "Your current location",
+          shortLabel: "Your location",
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        })
+      },
+      () => {
+        setStatus(`Location permission was denied. The map stays on ${place.label}.`)
+      },
+    )
+  }
+
+  function onSave() {
+    if (!save()) {
+      navigate(`/login?returnTo=${encodeURIComponent("/events")}&reason=location`)
+    }
+  }
+
+  return (
+    <section className="events-page">
+      <p className="visually-hidden" aria-live="polite">
+        {announce}
+      </p>
+      <p className="visually-hidden" aria-live="polite">
+        {status}
+      </p>
+      <form className="filters" onSubmit={onSearch}>
+        <div className="field location-field">
+          <img src={iconSearch} alt="" width="24" height="24" />
+          <label className="visually-hidden" htmlFor="place-search">
+            Search for a place
+          </label>
+          <input
+            id="place-search"
+            value={query}
+            placeholder={place.shortLabel}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <button className="text-button" type="submit">
+            {searching ? "Searching" : "Search"}
+          </button>
+          <button className="icon-button" type="button" onClick={useMyLocation}>
+            <img src={iconLocate} alt="" width="24" height="24" />
+            <span className="visually-hidden">Use my location</span>
+          </button>
+        </div>
+        <label className="field">
+          <img src={iconCalendar} alt="" width="24" height="24" />
+          <span className="visually-hidden">When</span>
+          <select value={when} onChange={(event) => setWhen(event.target.value)}>
+            <option value="7">Next 7 days</option>
+            <option value="30">Next 30 days</option>
+            <option value="any">Any date</option>
+          </select>
+        </label>
+        <label className="field">
+          <img src={iconSliders} alt="" width="24" height="24" />
+          <span className="visually-hidden">Activity</span>
+          <select value={kind} onChange={(event) => setKind(event.target.value)}>
+            <option value="all">All activities</option>
+            <option value="park">Parks</option>
+            <option value="recreation">Recreation centres</option>
+          </select>
+        </label>
+        <label className="field">
+          <img src={iconAccess} alt="" width="24" height="24" />
+          <span className="visually-hidden">Accessibility</span>
+          <select value={access} onChange={(event) => setAccess(event.target.value)}>
+            <option value="any">Accessibility</option>
+            <option value="paved">Paved or pathways</option>
+            <option value="washrooms">Washrooms noted</option>
+          </select>
+        </label>
+      </form>
+
+      {searchError ? (
+        <p className="form-note" role="alert">
+          {searchError}
+        </p>
+      ) : null}
+      {results.length ? (
+        <ul className="place-results">
+          {results.map((result) => (
+            <li key={`${result.lat}-${result.lng}`}>
+              <button
+                type="button"
+                onClick={() => {
+                  choose(result)
+                  setResults([])
+                  setQuery("")
+                }}
+              >
+                Use {result.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <div className="events-layout">
+        <div className="event-column">
+          <div className="results-bar">
+            <h1>
+              {filtered.length === 0
+                ? "No events in this area"
+                : `${filtered.length} event${filtered.length === 1 ? "" : "s"} near ${place.shortLabel}`}
+            </h1>
+            <label>
+              Within
+              <select value={radius} onChange={(event) => setRadius(event.target.value)}>
+                <option value="5">5 km</option>
+                <option value="25">25 km</option>
+                <option value="50">50 km</option>
+              </select>
+            </label>
+            <label>
+              Sort
+              <select value={sort} onChange={(event) => setSort(event.target.value)}>
+                <option value="soon">Soonest first</option>
+                <option value="close">Closest first</option>
+              </select>
+            </label>
+          </div>
+          <div className="event-scroll" tabIndex={0} aria-label="Community events">
+          {filtered.length === 0 ? (
+            <p>Change the distance or the filters. No extra events are added to fill the gap.</p>
+          ) : (
+            <ul className="event-list">
+              {filtered.map((event, index) => {
+                const selected = event.id === selectedId
+                const open = openId === event.id
+                return (
+                  <li key={event.id}>
+                    <article className={selected ? "event-card is-selected" : "event-card"}>
+                      <button
+                        id={`event-${event.id}`}
+                        className="event-hit"
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => selectEvent(event.id, "list")}
+                      >
+                        <span className="event-photo">
+                          <img src={event.image} alt="" />
+                          <span className="event-number">{index + 1}</span>
+                        </span>
+                        <span className="event-copy">
+                          <span className="event-name">{event.name}</span>
+                          <span className="event-meta">
+                            <img src={iconCalendar} alt="" width="21" height="21" />
+                            {formatWhen(event.date, event.start, event.end)}
+                          </span>
+                          <span className="event-meta event-place">
+                            <img src={iconPin} alt="" width="21" height="21" />
+                            {event.place} · {formatKm(event.distance)}
+                          </span>
+                        </span>
+                      </button>
+                      <div className="event-actions">
+                        <button
+                          className={selected ? "pill pill-dark" : "pill pill-mint"}
+                          type="button"
+                          aria-expanded={open}
+                          onClick={() => {
+                            selectEvent(event.id, "list")
+                            setOpenId(open ? "" : event.id)
+                          }}
+                        >
+                          Details
+                          <img
+                            src={selected ? iconArrowLight : iconArrowDark}
+                            alt=""
+                            width="20"
+                            height="20"
+                          />
+                        </button>
+                      </div>
+                      <p className="more-detail event-inline">{event.summaryLong}</p>
+                      <div className="event-more" hidden={!open}>
+                        <p>{event.summary}</p>
+                        <p className="more-detail">{event.summaryLong}</p>
+                        {event.access ? <p>{event.access}</p> : null}
+                        <p>{event.area}</p>
+                      </div>
+                    </article>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          </div>
+          <button className="pill" type="button" onClick={onSave}>
+            {saved ? "Location saved" : "Save this location"}
+          </button>
+        </div>
+        <div className="map-column">
+          <p className="map-caption">
+            Street map of the events near {place.label}. The list has the same events.
+          </p>
+          <EventMap
+            center={place}
+            events={filtered}
+            selectedId={selectedId}
+            onSelect={selectEvent}
+          />
+        </div>
+      </div>
+    </section>
+  )
+}

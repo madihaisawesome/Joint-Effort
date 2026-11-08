@@ -1,0 +1,76 @@
+import { Link } from "react-router-dom"
+import { useAuth } from "../context/Auth.jsx"
+import hero from "../assets/hero.png"
+import portrait1 from "../assets/portrait-1.png"
+import portrait2 from "../assets/portrait-2.png"
+import portrait3 from "../assets/portrait-3.png"
+import arrow from "../assets/arrow-right.svg"
+import phone from "../assets/phone.svg"
+import star from "../assets/star.svg"
+import { usePageTitle } from "../lib/title.js"
+
+export default function Home() {
+  const { isAuthenticated } = useAuth()
+  usePageTitle("JointEffort")
+
+  return (
+    <>
+      <section className="hero" style={{ "--hero": `url(${hero})` }}>
+        <div className="hero-shade" aria-hidden="true" />
+        <div className="hero-fade" aria-hidden="true" />
+        <div className="hero-row">
+          <div className="hero-copy">
+            <h1>
+              <span>A camera coach,</span>
+              <span>and campus events</span>
+            </h1>
+            <div className="hero-actions">
+              {isAuthenticated ? (
+                <Link className="pill pill-hero" to="/calendar">
+                  Open calendar
+                  <img src={arrow} alt="" width="34" height="34" />
+                </Link>
+              ) : (
+                <Link className="pill pill-hero" to="/login">
+                  Register now
+                  <img src={arrow} alt="" width="34" height="34" />
+                </Link>
+              )}
+              <Link className="text-link" to="/events">
+                <img src={phone} alt="" width="35" height="35" />
+                See events
+              </Link>
+            </div>
+          </div>
+          <div className="trust">
+            <div>
+              <div className="portraits">
+                <img src={portrait1} alt="" width="56" height="56" />
+                <img src={portrait2} alt="" width="56" height="56" />
+                <img src={portrait3} alt="" width="56" height="56" />
+              </div>
+              <p className="trust-line">
+                <img src={star} alt="" width="26" height="26" />
+                Near campus
+              </p>
+            </div>
+            <span className="trust-rule" aria-hidden="true" />
+            <p className="trust-stat">
+              <span>Campus</span>
+              <span>Community nearby</span>
+            </p>
+          </div>
+        </div>
+      </section>
+      <section className="more-detail page-narrow">
+        <h2>What you can do here</h2>
+        <p>
+          JointEffort helps you plan a workout, open a camera session, and find community events
+          near the University of Calgary. The camera coach is added by a partner. This site does
+          not count repetitions, score form, or save video.
+        </p>
+        <p>Stop if something hurts. This is not medical advice.</p>
+      </section>
+    </>
+  )
+}

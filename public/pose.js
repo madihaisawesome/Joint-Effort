@@ -1,7 +1,6 @@
 import {
   PoseLandmarker,
   FilesetResolver,
-  DrawingUtils,
 } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm";
 
 const LM = {
@@ -34,6 +33,28 @@ const VISIBILITY_MIN = 0.55;
 const CLOSE_SPAN_Y = 0.92;
 const EDGE_MARGIN = 0.03;
 
+// Body only. MediaPipe's full POSE_CONNECTIONS also wires the face,
+// which reads as a scribble of green lines around the head.
+const BONES = [
+  [11, 12],
+  [11, 23],
+  [12, 24],
+  [23, 24],
+  [11, 13],
+  [13, 15],
+  [12, 14],
+  [14, 16],
+  [23, 25],
+  [25, 27],
+  [27, 31],
+  [24, 26],
+  [26, 28],
+  [28, 32],
+];
+
+const JOINTS = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+const DRAW_SMOOTH = 0.62;
+
 const video = document.getElementById("webcam");
 const canvas = document.getElementById("overlay");
 const ctx = canvas.getContext("2d");
@@ -50,10 +71,10 @@ const angleEls = {
 
 /** @type {PoseLandmarker | null} */
 let poseLandmarker = null;
-/** @type {DrawingUtils | null} */
-let drawingUtils = null;
 /** @type {MediaStream | null} */
 let stream = null;
+/** @type {{ x: number, y: number, visibility: number }[] | null} */
+let drawPoints = null;
 let rafId = 0;
 let lastVideoTime = -1;
 let modelLoaded = false;
@@ -156,6 +177,142 @@ function assessVisibility(landmarks) {
   return { ok: true, reason: null };
 }
 
+function pointVisibility(lm) {
+  return lm?.visibility ?? landmarkVisibility(lm);
+}
+
+function smoothForDraw(landmarks) {
+  if (!drawPoints || drawPoints.length !== landmarks.length) {
+    drawPoints = landmarks.map((lm) => ({
+      x: lm.x,
+      y: lm.y,
+      visibility: landmarkVisibility(lm),
+    }));
+    return drawPoints;
+  }
+
+  for (let i = 0; i < landmarks.length; i++) {
+    const next = landmarks[i];
+    const prev = drawPoints[i];
+    if (!next) continue;
+    const visibility = landmarkVisibility(next);
+    if (!prev || visibility < 0.2 || prev.visibility < 0.2) {
+      drawPoints[i] = { x: next.x, y: next.y, visibility };
+      continue;
+    }
+    prev.x += (next.x - prev.x) * DRAW_SMOOTH;
+    prev.y += (next.y - prev.y) * DRAW_SMOOTH;
+    prev.visibility = visibility;
+  }
+  return drawPoints;
+}
+
+function toPixel(point) {
+  return {
+    x: point.x * canvas.width,
+    y: point.y * canvas.height,
+  };
+}
+
+function strokeSegment(a, b, minVisibility) {
+  if (!a || !b) return false;
+  const visibility = Math.min(pointVisibility(a), pointVisibility(b));
+  if (visibility < minVisibility) return false;
+  const start = toPixel(a);
+  const end = toPixel(b);
+  ctx.save();
+  ctx.globalAlpha *= 0.28 + 0.72 * Math.min(1, visibility);
+  ctx.beginPath();
+  ctx.moveTo(start.x, start.y);
+  ctx.lineTo(end.x, end.y);
+  ctx.stroke();
+  ctx.restore();
+  return true;
+}
+
+function neckPoint(points) {
+  const nose = points[0];
+  const left = points[LM.LEFT_SHOULDER];
+  const right = points[LM.RIGHT_SHOULDER];
+  if (!nose || !left || !right || pointVisibility(nose) <= 0.35) return null;
+  return {
+    x: (left.x + right.x) / 2,
+    y: (left.y + right.y) / 2,
+    visibility: Math.min(
+      pointVisibility(left),
+      pointVisibility(right),
+      pointVisibility(nose)
+    ),
+  };
+}
+
+function drawSkeleton(points) {
+  const shortSide = Math.min(canvas.width, canvas.height);
+  const boneWidth = Math.max(7, shortSide * 0.016);
+  const jointRadius = boneWidth * 0.62;
+  const neck = neckPoint(points);
+  const torso = [
+    points[LM.LEFT_SHOULDER],
+    points[LM.RIGHT_SHOULDER],
+    points[LM.RIGHT_HIP],
+    points[LM.LEFT_HIP],
+  ];
+
+  if (torso.every((point) => point && pointVisibility(point) > 0.4)) {
+    ctx.beginPath();
+    torso.forEach((point, index) => {
+      const pixel = toPixel(point);
+      if (index === 0) ctx.moveTo(pixel.x, pixel.y);
+      else ctx.lineTo(pixel.x, pixel.y);
+    });
+    ctx.closePath();
+    ctx.fillStyle = "rgba(52, 211, 153, 0.16)";
+    ctx.fill();
+  }
+
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  const paintBones = () => {
+    for (const [start, end] of BONES) {
+      strokeSegment(points[start], points[end], 0.3);
+    }
+    if (neck) strokeSegment(neck, points[0], 0.3);
+  };
+
+  ctx.save();
+  ctx.shadowColor = "rgba(74, 222, 128, 0.7)";
+  ctx.shadowBlur = boneWidth * 1.35;
+  ctx.strokeStyle = "#34d399";
+  ctx.lineWidth = boneWidth;
+  paintBones();
+  ctx.restore();
+
+  ctx.strokeStyle = "rgba(240, 253, 244, 0.92)";
+  ctx.lineWidth = Math.max(2, boneWidth * 0.34);
+  paintBones();
+
+  for (const index of JOINTS) {
+    const point = points[index];
+    if (!point || pointVisibility(point) < 0.35) continue;
+    const pixel = toPixel(point);
+    ctx.save();
+    ctx.globalAlpha = 0.4 + 0.6 * Math.min(1, pointVisibility(point));
+    ctx.beginPath();
+    ctx.fillStyle = "#059669";
+    ctx.arc(pixel.x, pixel.y, jointRadius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = Math.max(1.5, jointRadius * 0.22);
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.fillStyle = "#f8fafc";
+    ctx.arc(pixel.x, pixel.y, jointRadius * 0.38, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
 function resizeCanvas() {
   const w = video.videoWidth || video.clientWidth;
   const h = video.videoHeight || video.clientHeight;
@@ -182,6 +339,7 @@ function stopCamera() {
   video.srcObject = null;
   cameraRunning = false;
   poseDetected = false;
+  drawPoints = null;
   stopBtn.disabled = true;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   clearAngles();
@@ -234,24 +392,14 @@ function predictFrame() {
     const landmarks = result.landmarks?.[0];
     if (!landmarks) {
       poseDetected = false;
+      drawPoints = null;
       clearAngles();
       setGuidance(null);
       setStatus();
     } else {
       poseDetected = true;
       setStatus();
-
-      drawingUtils.drawConnectors(
-        landmarks,
-        PoseLandmarker.POSE_CONNECTIONS,
-        { color: "#4ade80", lineWidth: 3 }
-      );
-      drawingUtils.drawLandmarks(landmarks, {
-        color: "#f8fafc",
-        fillColor: "#22c55e",
-        lineWidth: 1,
-        radius: 3,
-      });
+      drawSkeleton(smoothForDraw(landmarks));
 
       const visibility = assessVisibility(landmarks);
       if (!visibility.ok) {
@@ -294,7 +442,6 @@ function predictFrame() {
 
 async function init() {
   setStatus();
-  drawingUtils = new DrawingUtils(ctx);
 
   try {
     const vision = await FilesetResolver.forVisionTasks(
