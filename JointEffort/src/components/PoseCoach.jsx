@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import StickDemo from "./StickDemo.jsx"
 import { createSession, evaluateSession, skipSessionStep } from "../lib/api.js"
+import { speakText, stopSpeaking } from "../lib/speech.js"
 
 const VISION_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm"
 const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
@@ -104,13 +105,8 @@ function progressLabel(progress) {
 }
 
 function speakCoach(text) {
-  if (!text || !("speechSynthesis" in window)) return
   try {
-    window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.lang = "en"
-    utterance.rate = 0.95
-    window.speechSynthesis.speak(utterance)
+    void speakText(text, { rate: 0.95, pitch: 1.06 })
   } catch {
     // Speech is optional — coaching still works without it.
   }
@@ -600,7 +596,7 @@ export default function PoseCoach({ curriculumId = "" }) {
       setGuidance(`Skipping ${skippedTitle}…`)
       setAiTip(false)
       try {
-        window.speechSynthesis?.cancel()
+        stopSpeaking()
         const data = await skipSessionStep(coach.sessionId, stepId)
         resetSmoothing()
         if (!cancelled && epoch === coach.epoch) {
@@ -675,7 +671,7 @@ export default function PoseCoach({ curriculumId = "" }) {
     return () => {
       cancelled = true
       sessionRef.current = null
-      window.speechSynthesis?.cancel()
+      stopSpeaking()
       stopCamera()
       landmarker?.close?.()
       landmarker = null

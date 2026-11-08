@@ -25,6 +25,12 @@ const {
   sessionSummary,
   MODEL: GEMINI_MODEL,
 } = require("./geminiCoach");
+const {
+  isConfigured: ttsConfigured,
+  synthesize: synthesizeSpeech,
+  DEFAULT_VOICE: TTS_DEFAULT_VOICE,
+  VOICES: TTS_VOICES,
+} = require("./geminiTts");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -266,7 +272,39 @@ app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
     gemini: { configured: geminiConfigured(), model: GEMINI_MODEL },
+    tts: {
+      configured: ttsConfigured(),
+      voice: TTS_DEFAULT_VOICE,
+      voices: TTS_VOICES,
+    },
   });
+});
+
+app.post("/api/tts", async (req, res) => {
+  if (!ttsConfigured()) {
+    return jsonError(res, 503, "Gemini TTS is not configured");
+  }
+  const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+  if (!text) return jsonError(res, 400, "text is required");
+  if (text.length > 1200) return jsonError(res, 400, "text is too long");
+
+  try {
+    const result = await synthesizeSpeech({
+      text,
+      voice: typeof req.body?.voice === "string" ? req.body.voice : undefined,
+    });
+    if (!result) return jsonError(res, 503, "Gemini TTS unavailable");
+    return res.json({
+      audio: result.audio,
+      mimeType: result.mimeType,
+      voice: result.voice,
+      model: result.model,
+      cached: Boolean(result.cached),
+    });
+  } catch (err) {
+    console.error("TTS failed:", err.message || err);
+    return jsonError(res, 502, err.message || "TTS failed");
+  }
 });
 
 app.get("/api/curriculum", (_req, res) => {

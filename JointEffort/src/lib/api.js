@@ -92,3 +92,14 @@ export function getMapPlaces(params = {}) {
   const query = new URLSearchParams(params).toString()
   return api(`/api/map/places${query ? `?${query}` : ""}`)
 }
+
+export function synthesizeSpeech(text, voice) {
+  return api("/api/tts", {
+    method: "POST",
+    body: JSON.stringify({
+      text: String(text || "").trim(),
+      ...(voice ? { voice } : {}),
+    }),
+    timeoutMs: 20000,
+  })
+}

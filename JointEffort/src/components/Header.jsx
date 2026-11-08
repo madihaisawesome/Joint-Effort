@@ -10,14 +10,14 @@ const loggedOut = [
   { to: "/about", label: "About" },
   { to: "/exercises", label: "Exercises" },
   { to: "/events", label: "Events" },
-  { to: "/activity", label: "Activity board" },
+  { to: "/activity", label: "Activity Board" },
 ]
 
 const loggedIn = [
   { to: "/profile", label: "Profile" },
   { to: "/exercises", label: "Exercises" },
   { to: "/events", label: "Events" },
-  { to: "/activity", label: "Activity board" },
+  { to: "/activity", label: "Activity Board" },
   { to: "/calendar", label: "Calendar" },
 ]
 
@@ -102,6 +102,7 @@ export function AccessibilityControls() {
             {speech.cameraPage ? (
               <p className="speech-now">Reads the coaching steps and tips on this page.</p>
             ) : null}
+            {speech.voiceName ? <p className="speech-now">Voice: {speech.voiceName}</p> : null}
             {speech.snippet ? <p className="speech-now">Reading: {speech.snippet}</p> : null}
           </>
         )}
