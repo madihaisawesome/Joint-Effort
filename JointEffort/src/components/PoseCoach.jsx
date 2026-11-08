@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import StickDemo from "./StickDemo.jsx"
 import { createSession, evaluateSession, skipSessionStep } from "../lib/api.js"
 
 const VISION_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm"
@@ -102,6 +103,19 @@ function progressLabel(progress) {
   return ""
 }
 
+function speakCoach(text) {
+  if (!text || !("speechSynthesis" in window)) return
+  try {
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = "en"
+    utterance.rate = 0.95
+    window.speechSynthesis.speak(utterance)
+  } catch {
+    // Speech is optional — coaching still works without it.
+  }
+}
+
 export default function PoseCoach() {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
@@ -114,6 +128,10 @@ export default function PoseCoach() {
     lastEvaluateAt: 0,
     skipping: false,
     epoch: 0,
+    phase: "loading",
+    lastStepId: "",
+    lastSpokenFeedback: "",
+    lastSpokenReps: -1,
     smoothed: {
       leftShoulder: null,
       rightShoulder: null,
@@ -131,10 +149,35 @@ export default function PoseCoach() {
   const [stepLabel, setStepLabel] = useState("Starting…")
   const [stepTitle, setStepTitle] = useState("")
   const [stepInstruction, setStepInstruction] = useState("")
+  const [exerciseType, setExerciseType] = useState("arm_raise")
+  const [phase, setPhase] = useState("loading")
   const [angles, setAngles] = useState(BLANK)
   const [modelReady, setModelReady] = useState(false)
   const [cameraOn, setCameraOn] = useState(false)
   const [canSkip, setCanSkip] = useState(false)
+  const [reducedMotion] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  )
+
+  function enterDemo(step, index) {
+    const coach = coachRef.current
+    coach.phase = "demo"
+    coach.lastStepId = step.id
+    coach.lastSpokenFeedback = ""
+    coach.lastSpokenReps = -1
+    setPhase("demo")
+    setExerciseType(step.exercise || "arm_raise")
+    setStepLabel(`Step ${index} · demo`)
+    setStepTitle(step.title)
+    setStepInstruction(step.instruction)
+    setProgressText("")
+    setGuidance("Watch the stick figure, then press I’m ready when you want to try.")
+    setAiTip(false)
+    setCanSkip(Boolean(coach.sessionId))
+    speakCoach(
+      `${step.title}. ${step.instruction} Watch the stick figure demo, then press I’m ready when you want to try.`,
+    )
+  }
 
   function applyPayload(data) {
     const coach = coachRef.current
@@ -143,6 +186,8 @@ export default function PoseCoach() {
     coach.done = Boolean(data.done) || !data.nextStep
 
     if (coach.done) {
+      coach.phase = "done"
+      setPhase("done")
       const summary = data.summary || data.evaluation?.feedback || "Routine complete"
       setStepLabel("All done")
       setStepTitle("Routine complete")
@@ -151,14 +196,23 @@ export default function PoseCoach() {
       setAiTip(Boolean(data.evaluation?.aiEnhanced || data.summary))
       setProgressText("")
       setCanSkip(false)
+      speakCoach(summary)
       return
     }
 
     const step = data.nextStep
     const index = (data.session?.currentStep ?? 0) + 1
-    setStepLabel(`Step ${index} · ${step.exercise}`)
+    const stepChanged = step.id !== coach.lastStepId
+
+    if (stepChanged || coach.phase === "loading") {
+      enterDemo(step, index)
+      return
+    }
+
+    setStepLabel(`Step ${index} · your turn`)
     setStepTitle(step.title)
     setStepInstruction(step.instruction)
+    setExerciseType(step.exercise || "arm_raise")
     setCanSkip(Boolean(coach.sessionId))
 
     const evaluation = data.evaluation
@@ -171,6 +225,18 @@ export default function PoseCoach() {
       setAiTip(Boolean(evaluation.aiEnhanced))
     }
     setProgressText(progressLabel(evaluation.progress))
+    const reps = evaluation.progress?.reps
+    if (
+      coach.phase === "practice" &&
+      typeof reps === "number" &&
+      reps !== coach.lastSpokenReps &&
+      evaluation.feedback &&
+      !/step back/i.test(evaluation.feedback)
+    ) {
+      coach.lastSpokenReps = reps
+      coach.lastSpokenFeedback = evaluation.feedback
+      speakCoach(evaluation.feedback)
+    }
   }
 
   useEffect(() => {
@@ -195,6 +261,10 @@ export default function PoseCoach() {
       lastEvaluateAt: 0,
       skipping: false,
       epoch: 0,
+      phase: "loading",
+      lastStepId: "",
+      lastSpokenFeedback: "",
+      lastSpokenReps: -1,
       smoothed: {
         leftShoulder: null,
         rightShoulder: null,
@@ -243,6 +313,7 @@ export default function PoseCoach() {
     }
 
     async function sendMetrics(metrics) {
+      if (coach.phase !== "practice") return
       if (!coach.sessionId || !coach.nextStep || coach.done || coach.evaluateInFlight || coach.skipping) return
       const now = performance.now()
       if (now - coach.lastEvaluateAt < EVALUATE_EVERY_MS) return
@@ -272,6 +343,20 @@ export default function PoseCoach() {
       } finally {
         coach.evaluateInFlight = false
       }
+    }
+
+    function beginPractice() {
+      if (!coach.nextStep || coach.done) return
+      coach.phase = "practice"
+      coach.lastSpokenFeedback = ""
+      coach.lastSpokenReps = -1
+      setPhase("practice")
+      setStepLabel(`Your turn · ${coach.nextStep.exercise}`)
+      setGuidance("I’m watching. Match the demo at your own pace.")
+      setAiTip(false)
+      setProgressText("")
+      speakCoach(`Your turn. ${coach.nextStep.title}. I’m watching now.`)
+      if (!running && landmarker) startCamera()
     }
 
     function resizeCanvas() {
@@ -515,15 +600,11 @@ export default function PoseCoach() {
       setGuidance(`Skipping ${skippedTitle}…`)
       setAiTip(false)
       try {
+        window.speechSynthesis?.cancel()
         const data = await skipSessionStep(coach.sessionId, stepId)
         resetSmoothing()
         if (!cancelled && epoch === coach.epoch) {
           applyPayload(data)
-          if (!coach.done && data.nextStep) {
-            setGuidance(`Skipped ${skippedTitle}. Next: ${data.nextStep.title}.`)
-            setAiTip(false)
-            setProgressText("")
-          }
         }
       } catch (error) {
         if (!cancelled) setGuidance(error.message || "Skip failed")
@@ -533,7 +614,7 @@ export default function PoseCoach() {
       }
     }
 
-    sessionRef.current = { startCamera, stopCamera, skipStep }
+    sessionRef.current = { startCamera, stopCamera, skipStep, beginPractice }
 
     async function createLandmarker(PoseLandmarker, FilesetResolver, delegate) {
       const vision = await FilesetResolver.forVisionTasks(WASM_URL)
@@ -576,8 +657,7 @@ export default function PoseCoach() {
           return
         }
         setModelReady(true)
-        setStatus("The pose model is ready. The camera is starting.")
-        await startCamera()
+        setStatus("Demo ready. Watch the stick figure, then press I’m ready.")
       } catch (error) {
         if (!cancelled) {
           const message = error?.message || "Try again."
@@ -595,6 +675,7 @@ export default function PoseCoach() {
     return () => {
       cancelled = true
       sessionRef.current = null
+      window.speechSynthesis?.cancel()
       stopCamera()
       landmarker?.close?.()
       landmarker = null
@@ -602,7 +683,7 @@ export default function PoseCoach() {
   }, [])
 
   return (
-    <div className="pose-coach" data-skip-speech>
+    <div className="pose-coach">
       <div className="pose-step-card">
         <p className="pose-step-label">{stepLabel}</p>
         <h2>{stepTitle}</h2>
@@ -614,51 +695,96 @@ export default function PoseCoach() {
       </p>
       {guidance ? (
         <p className={`pose-guidance${aiTip ? " has-ai" : ""}`}>
-          {aiTip ? <span className="pose-ai-badge">Gemini tip</span> : null}
+          {aiTip ? <span className="pose-ai-badge" aria-hidden="true">Gemini tip</span> : null}
           {guidance}
         </p>
       ) : null}
-      <div className="pose-layout">
+
+      {phase === "demo" || phase === "loading" ? (
+        <div className="pose-demo-panel">
+          <StickDemo exercise={exerciseType} reducedMotion={reducedMotion} />
+          <div className="pose-demo-copy">
+            <h3>Watch the demo</h3>
+            <p>
+              The stick figure shows the movement. Listen to the instruction, then press I’m ready
+              when you want the camera to watch you.
+            </p>
+            <div className="button-row">
+              <button
+                className="pill pill-dark"
+                type="button"
+                disabled={!modelReady || phase !== "demo"}
+                onClick={() => sessionRef.current?.beginPractice()}
+              >
+                I’m ready — watch me
+              </button>
+              <button className="pill" type="button" disabled={!canSkip} onClick={() => sessionRef.current?.skipStep()}>
+                Skip this step
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {phase === "practice" ? (
+        <div className="pose-practice-hint">
+          <StickDemo exercise={exerciseType} reducedMotion={reducedMotion} />
+          <p>Keep matching this demo. The camera is watching your form.</p>
+        </div>
+      ) : null}
+
+      <div
+        className={`pose-layout${phase === "demo" || phase === "loading" ? " is-preload" : ""}`}
+        data-skip-speech
+        aria-hidden={phase === "demo" || phase === "loading" ? true : undefined}
+      >
         <div className="pose-stage">
           <video ref={videoRef} playsInline autoPlay muted />
           <canvas ref={canvasRef} aria-hidden="true" />
         </div>
-        <aside className="pose-readout" aria-label="Joint angles">
-          <h2>Joint angles</h2>
-          <dl>
-            <div>
-              <dt>Left shoulder</dt>
-              <dd>{angles.leftShoulder}</dd>
-            </div>
-            <div>
-              <dt>Right shoulder</dt>
-              <dd>{angles.rightShoulder}</dd>
-            </div>
-            <div>
-              <dt>Left knee</dt>
-              <dd>{angles.leftKnee}</dd>
-            </div>
-            <div>
-              <dt>Right knee</dt>
-              <dd>{angles.rightKnee}</dd>
-            </div>
-          </dl>
-          <p>Angles stay on this device. Only numbers go to the coaching server.</p>
-        </aside>
+        {phase === "practice" || phase === "done" ? (
+          <aside className="pose-readout" aria-label="Joint angles">
+            <h2>Joint angles</h2>
+            <dl>
+              <div>
+                <dt>Left shoulder</dt>
+                <dd>{angles.leftShoulder}</dd>
+              </div>
+              <div>
+                <dt>Right shoulder</dt>
+                <dd>{angles.rightShoulder}</dd>
+              </div>
+              <div>
+                <dt>Left knee</dt>
+                <dd>{angles.leftKnee}</dd>
+              </div>
+              <div>
+                <dt>Right knee</dt>
+                <dd>{angles.rightKnee}</dd>
+              </div>
+            </dl>
+            <p>Angles stay on this device. Only numbers go to the coaching server.</p>
+          </aside>
+        ) : null}
       </div>
-      <div className="button-row pose-actions">
-        <button
-          className="pill pill-dark"
-          type="button"
-          disabled={!modelReady}
-          onClick={() => (cameraOn ? sessionRef.current?.stopCamera() : sessionRef.current?.startCamera())}
-        >
-          {cameraOn ? "Stop camera" : "Start camera"}
-        </button>
-        <button className="pill" type="button" disabled={!canSkip} onClick={() => sessionRef.current?.skipStep()}>
-          Skip step
-        </button>
-      </div>
+
+      {phase === "practice" || phase === "done" ? (
+        <div className="button-row pose-actions" data-skip-speech>
+          <button
+            className="pill pill-dark"
+            type="button"
+            disabled={!modelReady}
+            onClick={() => (cameraOn ? sessionRef.current?.stopCamera() : sessionRef.current?.startCamera())}
+          >
+            {cameraOn ? "Stop camera" : "Start camera"}
+          </button>
+          {phase === "practice" ? (
+            <button className="pill" type="button" disabled={!canSkip} onClick={() => sessionRef.current?.skipStep()}>
+              Skip step
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }

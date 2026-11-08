@@ -458,6 +458,7 @@ html[data-contrast="high"] .hero h1 { color: #ffffff; }
   margin: 0 0 1rem;
 }
 .camera-page p { font-size: 1.25rem; margin: 0 0 1rem; max-width: 65ch; }
+.pose-coach { position: relative; }
 .pose-step-card {
   border: 2px solid var(--green);
   border-radius: 1.1rem;
@@ -502,6 +503,89 @@ html[data-contrast="high"] .hero h1 { color: #ffffff; }
   vertical-align: middle;
 }
 .pose-actions { position: sticky; bottom: 0.75rem; z-index: 2; }
+.pose-layout.is-preload {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.pose-demo-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: center;
+  margin: 1rem 0 1.25rem;
+  padding: 1.1rem 1.25rem;
+  border: 2px solid var(--green);
+  border-radius: 1.25rem;
+  background: var(--panel);
+}
+.pose-demo-copy h3 {
+  font-family: var(--serif);
+  font-size: 1.55rem;
+  margin: 0 0 0.45rem;
+}
+.pose-demo-copy p { margin: 0 0 0.75rem; max-width: 42ch; }
+.pose-demo-copy .button-row { margin-top: 0.5rem; }
+.pose-practice-hint {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.85rem;
+  border: 2px dashed var(--line);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--mint) 55%, white);
+}
+.pose-practice-hint .stick-demo {
+  width: 88px;
+  flex-shrink: 0;
+}
+.pose-practice-hint p { margin: 0; font-weight: 700; }
+.stick-demo {
+  margin: 0 auto;
+  width: min(100%, 260px);
+  text-align: center;
+}
+.stick-demo svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.stick-demo line {
+  stroke: var(--green);
+  stroke-width: 8;
+  stroke-linecap: round;
+  fill: none;
+}
+.stick-head {
+  fill: var(--green);
+  stroke: none;
+}
+.stick-floor {
+  fill: var(--line);
+  stroke: none;
+  opacity: 0.45;
+}
+.stick-chair rect {
+  fill: color-mix(in srgb, var(--panel) 65%, var(--line));
+  stroke: var(--line);
+  stroke-width: 2.5;
+}
+.stick-caption {
+  margin: 0.45rem 0 0 !important;
+  font-size: 1rem !important;
+  font-weight: 700;
+  color: var(--green);
+}
+@media (max-width: 720px) {
+  .pose-demo-panel { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .pose-demo-copy p { margin-left: auto; margin-right: auto; }
+  .pose-demo-copy .button-row { justify-content: center; }
+}
 .exercise-steps {
   margin: 0.75rem 0 1.25rem;
   padding-left: 1.25rem;

@@ -44,8 +44,9 @@ export default function Ai() {
     <section className="camera-page">
       <h1>{exercise.name}</h1>
       <p>
-        This page asks for the camera. Video stays on this device. Joint angles go to the coaching
-        server for reps and tips — not the video itself.
+        Each step starts with a spoken instruction and a stick-figure demo. When you are ready, the
+        camera watches your form. Video stays on this device — only joint angles go to the coaching
+        server.
       </p>
       <PoseCoach />
       <Link className="pill" to={returnTo}>

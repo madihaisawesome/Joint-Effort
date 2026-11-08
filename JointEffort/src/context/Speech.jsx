@@ -88,7 +88,7 @@ export function SpeechProvider({ children }) {
   }
 
   const play = () => {
-    if (!("speechSynthesis" in window) || location.pathname === "/ai") {
+    if (!("speechSynthesis" in window)) {
       setPhase("unavailable")
       return
     }
@@ -122,7 +122,7 @@ export function SpeechProvider({ children }) {
   }
 
   const cameraPage = location.pathname === "/ai"
-  const unavailable = phase === "unavailable" || cameraPage
+  const unavailable = phase === "unavailable"
 
   return (
     <SpeechContext.Provider value={{ phase, snippet, unavailable, cameraPage, play, pause, stop }}>

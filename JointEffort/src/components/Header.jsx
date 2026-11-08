@@ -1,4 +1,4 @@
-import { Link, NavLink } from "react-router-dom"
+import { Link, NavLink, useLocation } from "react-router-dom"
 import { useAuth } from "../context/Auth.jsx"
 import { usePreferences } from "../context/Preferences.jsx"
 import { useSpeech } from "../context/Speech.jsx"
@@ -69,9 +69,7 @@ export function AccessibilityControls() {
         High contrast
       </button>
       <div className="speech-controls">
-        {speech.cameraPage ? (
-          <p>Read-aloud is off on the camera page.</p>
-        ) : speech.unavailable ? (
+        {speech.unavailable ? (
           <p>Read-aloud is unavailable.</p>
         ) : (
           <>
@@ -99,6 +97,9 @@ export function AccessibilityControls() {
                 ))}
               </div>
             </fieldset>
+            {speech.cameraPage ? (
+              <p className="speech-now">Reads the coaching steps and tips on this page.</p>
+            ) : null}
             {speech.snippet ? <p className="speech-now">Reading: {speech.snippet}</p> : null}
           </>
         )}
@@ -109,7 +110,9 @@ export function AccessibilityControls() {
 
 export default function Header() {
   const { isAuthenticated, logout } = useAuth()
+  const location = useLocation()
   const links = isAuthenticated ? loggedIn : loggedOut
+  const showA11yBar = !isAuthenticated || location.pathname === "/ai"
 
   return (
     <header className="site-header">
@@ -143,11 +146,11 @@ export default function Header() {
           )}
         </div>
       </div>
-      {isAuthenticated ? null : (
+      {showA11yBar ? (
         <div className="a11y-bar">
           <AccessibilityControls />
         </div>
-      )}
+      ) : null}
     </header>
   )
 }
