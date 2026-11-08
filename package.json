@@ -10,6 +10,6 @@
     "dev:frontend": "npm run dev --prefix JointEffort"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   }
 }
