@@ -267,6 +267,8 @@ export default function PoseCoach({ curriculumId = "" }) {
       setAiTip(Boolean(data.evaluation?.aiEnhanced || data.summary))
       setProgressText("")
       setCanSkip(false)
+      // Camera is unused after the routine — release it.
+      sessionRef.current?.stopCamera("Routine complete. The camera is off.")
       stopSpeaking()
       speakCoach(summary, { priority: SPEECH_PRIORITY.summary })
       return
@@ -827,42 +829,44 @@ export default function PoseCoach({ curriculumId = "" }) {
         </div>
       ) : null}
 
-      <div
-        className={`pose-layout${phase === "demo" || phase === "loading" ? " is-preload" : ""}`}
-        data-skip-speech
-        aria-hidden={phase === "demo" || phase === "loading" ? true : undefined}
-      >
-        <div className="pose-stage">
-          <video ref={videoRef} playsInline autoPlay muted />
-          <canvas ref={canvasRef} aria-hidden="true" />
+      {phase !== "done" ? (
+        <div
+          className={`pose-layout${phase === "demo" || phase === "loading" ? " is-preload" : ""}`}
+          data-skip-speech
+          aria-hidden={phase === "demo" || phase === "loading" ? true : undefined}
+        >
+          <div className="pose-stage">
+            <video ref={videoRef} playsInline autoPlay muted />
+            <canvas ref={canvasRef} aria-hidden="true" />
+          </div>
+          {phase === "practice" ? (
+            <aside className="pose-readout" aria-label="Joint angles">
+              <h2>Joint angles</h2>
+              <dl>
+                <div>
+                  <dt>Left shoulder</dt>
+                  <dd>{angles.leftShoulder}</dd>
+                </div>
+                <div>
+                  <dt>Right shoulder</dt>
+                  <dd>{angles.rightShoulder}</dd>
+                </div>
+                <div>
+                  <dt>Left knee</dt>
+                  <dd>{angles.leftKnee}</dd>
+                </div>
+                <div>
+                  <dt>Right knee</dt>
+                  <dd>{angles.rightKnee}</dd>
+                </div>
+              </dl>
+              <p>Angles stay on this device. Only numbers go to the coaching server.</p>
+            </aside>
+          ) : null}
         </div>
-        {phase === "practice" || phase === "done" ? (
-          <aside className="pose-readout" aria-label="Joint angles">
-            <h2>Joint angles</h2>
-            <dl>
-              <div>
-                <dt>Left shoulder</dt>
-                <dd>{angles.leftShoulder}</dd>
-              </div>
-              <div>
-                <dt>Right shoulder</dt>
-                <dd>{angles.rightShoulder}</dd>
-              </div>
-              <div>
-                <dt>Left knee</dt>
-                <dd>{angles.leftKnee}</dd>
-              </div>
-              <div>
-                <dt>Right knee</dt>
-                <dd>{angles.rightKnee}</dd>
-              </div>
-            </dl>
-            <p>Angles stay on this device. Only numbers go to the coaching server.</p>
-          </aside>
-        ) : null}
-      </div>
+      ) : null}
 
-      {phase === "practice" || phase === "done" ? (
+      {phase === "practice" ? (
         <div className="button-row pose-actions" data-skip-speech>
           <button
             className="pill pill-dark"
@@ -872,11 +876,9 @@ export default function PoseCoach({ curriculumId = "" }) {
           >
             {cameraOn ? "Stop camera" : "Start camera"}
           </button>
-          {phase === "practice" ? (
-            <button className="pill" type="button" disabled={!canSkip} onClick={() => sessionRef.current?.skipStep()}>
-              Skip step
-            </button>
-          ) : null}
+          <button className="pill" type="button" disabled={!canSkip} onClick={() => sessionRef.current?.skipStep()}>
+            Skip step
+          </button>
         </div>
       ) : null}
 
