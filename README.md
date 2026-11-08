@@ -1,120 +1,73 @@
 # Joint Effort
 
-Minimal on-device pose coach skeleton (Node/Express + static frontend).
+Accessible, privacy-first movement coach: **on-device pose** + **Gemini tips & voice** + campus **community / activity** tools.
 
-Pose video never leaves the browser. The server only stores session progress and walking-buddy posts in memory.
+Pose video never leaves the browser. The server only sees numeric joint metrics, session progress, and text.
 
-## Setup
+## Quick start (demo)
+
+You need **two terminals**.
+
+### 1. Backend (API + Gemini TTS)
 
 ```bash
 cd backend
 npm install
 copy .env.example .env
-# put GEMINI_API_KEY in .env (optional — app works without it)
+# put GEMINI_API_KEY=... in .env
 npm start
 ```
 
-Pose coach: http://localhost:3000/  
-Map: http://localhost:3000/map.html  
-API viewer: http://localhost:3000/viewer.html
+Backend: http://localhost:3000  
+Health: http://localhost:3000/api/health — expect `"gemini": { "configured": true }` and TTS configured.
 
-On first start the backend syncs Calgary recreation facilities from [Open Calgary](https://data.calgary.ca/resource/hxfu-6d96.json) into a local SQLite cache (`backend/data/joint-effort.sqlite`), then merges curated programs and walking-buddy pins.
-
-## Gemini coaching (MLH / Best Use of Gemini API)
-
-**Pose video never leaves the browser.** Gemini only receives numeric angles, reps/phase, and curriculum text, then returns short coaching tips and an end-of-routine summary.
-
-1. Create a key at [Google AI Studio](https://aistudio.google.com/apikey)
-2. Set `GEMINI_API_KEY` in `backend/.env`
-3. Restart the server — `/api/health` shows `"gemini": { "configured": true }`
-
-Tips are throttled (~every 4s, or when feedback changes / a step passes). Without a key, rule-based feedback still works.
-
-Demo tip endpoint:
+### 2. Frontend (React site)
 
 ```bash
-curl -X POST http://localhost:3000/api/sessions/SESSION_ID/coach ^
-  -H "Content-Type: application/json" ^
-  -d "{\"stepId\":\"step-1-arm-raise\",\"metrics\":{\"usable\":true,\"leftShoulderAngle\":60,\"rightShoulderAngle\":90}}"
+cd JointEffort
+npm install
+npm run dev
 ```
 
-Auth0 (user accounts) is handled separately by a teammate and is not required for Gemini.
+App: http://localhost:5173
 
-## Pose coach (camera)
+## Judge demo path (2–3 minutes)
 
-The home page loads the MediaPipe lite pose model from `public/models/pose_landmarker_lite.task`, requests camera permission, draws a skeleton overlay, and shows shoulder/knee angles in a debug panel. Low-visibility / too-close poses show **step back** instead of noisy angles. **Stop camera** releases the MediaStream.
+1. Open **Exercises**
+2. Choose **Judge Demo** (first card — 2 reps each step)
+3. Start the camera session → watch stick demo → **I’m ready**
+4. Listen for form cues and **“Good. X more.”**
+5. Finish the step → next exercise instructions should speak automatically
+6. Optional: **Events** map / **Activity** board for the community angle
 
-If the model file is missing, download it:
+## What Gemini is used for
 
-https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task
+| Feature | What is sent | What you hear / see |
+|---------|----------------|---------------------|
+| Coaching tips | Angles, phase, reps (no video) | Short on-screen tips |
+| Voice | Text only | Natural Gemini TTS (Aoede) for demos + live cues |
+| Session summary | Completed steps + notes | End-of-routine summary |
 
-Save it as:
+Without `GEMINI_API_KEY`, rule-based feedback and browser speech still work.
+
+## Project layout
 
 ```
-public/models/pose_landmarker_lite.task
+JointEffort/     React + Vite UI (coach, exercises, map, activity, a11y)
+backend/         Express API, curriculum, pose rules, Gemini coach + TTS
+public/          Legacy static pages / pose assets (optional)
 ```
 
-## Stage (a) — API smoke tests
+## Privacy
 
-With the server running, use the curl commands in the stage (a) handoff notes (or below).
+- Camera frames stay in the browser (MediaPipe).
+- API payloads are metrics + text only.
+- No workout video is uploaded or stored.
 
-### Health
+## Auth0 (optional)
 
-```bash
-curl http://localhost:3000/api/health
-```
+Account features (calendar / saved place) use Auth0 when `JointEffort/.env` is filled from `.env.example`. The camera coach works without Auth0.
 
-### Curriculum / programs
+## Safety
 
-```bash
-curl http://localhost:3000/api/curriculum
-curl http://localhost:3000/api/programs
-```
-
-### Session + progress
-
-```bash
-curl -X POST http://localhost:3000/api/sessions
-# copy sessionId, then:
-curl http://localhost:3000/api/sessions/SESSION_ID
-curl -X POST http://localhost:3000/api/sessions/SESSION_ID/progress ^
-  -H "Content-Type: application/json" ^
-  -d "{\"stepId\":\"step-1-arm-raise\",\"passed\":true}"
-```
-
-### Session + evaluate (server-side exercise rules)
-
-Send numeric metrics only (no video). The server tracks hold time / reps and advances the step when rules pass.
-
-```bash
-curl -X POST http://localhost:3000/api/sessions/SESSION_ID/evaluate ^
-  -H "Content-Type: application/json" ^
-  -d "{\"stepId\":\"step-1-arm-raise\",\"metrics\":{\"usable\":true,\"leftShoulderAngle\":90,\"rightShoulderAngle\":88}}"
-```
-
-Metrics by exercise:
-
-| Exercise | Fields |
-|----------|--------|
-| arm_raise | `leftShoulderAngle`, `rightShoulderAngle`, `usable` |
-| sit_to_stand | `leftKneeAngle`, `rightKneeAngle`, `usable` |
-| balance_hold | `leftHip`/`rightHip` `{x,y}`, `usable` |
-
-Set `usable: false` (e.g. on-device “step back”) so the server resets hold timers instead of counting bad frames.
-
-### Buddies
-
-```bash
-curl http://localhost:3000/api/buddies
-curl -X POST http://localhost:3000/api/buddies ^
-  -H "Content-Type: application/json" ^
-  -d "{\"name\":\"Alex\",\"area\":\"Beltline\",\"time\":\"Tue 10am\",\"note\":\"Slow pace walk\"}"
-```
-
-## Tunable thresholds (backend/data/curriculum.json)
-
-| Step | Fields |
-|------|--------|
-| arm_raise | `targetAngle` (90), `tolerance` (15), `reps` (5), `minHoldSeconds` (0.4) |
-| sit_to_stand | `seatedAngle` (90), `targetAngle` (165 standing), `tolerance` (15), `reps` (5) |
-| balance_hold | `holdSeconds` (2 per hold), `reps` (5), `maxHipMovement` (0.04), `tolerance` (15) |
+Stop if something hurts. This is not medical advice.

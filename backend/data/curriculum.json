@@ -1,6 +1,45 @@
 {
   "routines": [
     {
+      "id": "judge-demo",
+      "title": "Judge Demo",
+      "summary": "Fast walkthrough for demos: 2 arm raises, 2 sit-to-stands, and 2 short balance holds.",
+      "steps": [
+        {
+          "id": "demo-arm-raise",
+          "title": "Arm Raise",
+          "instruction": "Raise both arms out to shoulder height, then lower them. Repeat 2 times.",
+          "exercise": "arm_raise",
+          "targetAngle": 90,
+          "tolerance": 15,
+          "reps": 2,
+          "minHoldSeconds": 0.35
+        },
+        {
+          "id": "demo-sit-to-stand",
+          "title": "Sit to Stand",
+          "instruction": "From a seated position or squat, stand up fully, then sit or squat back down. Repeat 2 times.",
+          "exercise": "sit_to_stand",
+          "targetAngle": 155,
+          "seatedAngle": 100,
+          "tolerance": 35,
+          "reps": 2,
+          "minBendDelta": 10,
+          "minRiseDelta": 10
+        },
+        {
+          "id": "demo-balance-hold",
+          "title": "Balance Hold",
+          "instruction": "Stand with hips level and stay still for a short hold. Repeat 2 steady holds.",
+          "exercise": "balance_hold",
+          "tolerance": 15,
+          "holdSeconds": 1.5,
+          "reps": 2,
+          "maxHipMovement": 0.045
+        }
+      ]
+    },
+    {
       "id": "gentle-test-routine",
       "title": "Gentle Test Routine",
       "summary": "A short mixed session: arm raises, sit-to-stand, and a quiet balance hold.",
