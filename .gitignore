@@ -1,8 +1,11 @@
 node_modules/
 backend/node_modules/
+JointEffort/node_modules/
+JointEffort/dist/
 backend/data/joint-effort.sqlite
 backend/data/joint-effort.sqlite-*
 backend/.env
+JointEffort/.env
 .env
 *.log
 .DS_Store

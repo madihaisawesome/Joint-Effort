@@ -1,0 +1,15 @@
+{
+  "name": "joint-effort",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Joint Effort — on-device pose coach + community activity (Railway monorepo)",
+  "scripts": {
+    "build": "npm install --prefix backend && npm install --prefix JointEffort && npm run build --prefix JointEffort",
+    "start": "npm start --prefix backend",
+    "dev:backend": "npm start --prefix backend",
+    "dev:frontend": "npm run dev --prefix JointEffort"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

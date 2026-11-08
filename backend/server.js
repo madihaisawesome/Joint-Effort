@@ -89,16 +89,28 @@ if (buddySeed.added) {
 
 app.use(express.json({ limit: "32kb" }));
 
+const ALLOWED_ORIGINS = new Set([
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "https://jointeffort.health",
+  "https://www.jointeffort.health",
+]);
+for (const origin of String(process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean)) {
+  ALLOWED_ORIGINS.add(origin);
+}
+
 // Allow the Vite frontend (and same-origin Express static) to call the API.
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (
-    !origin ||
-    origin === "http://localhost:5173" ||
-    origin === "http://127.0.0.1:5173"
-  ) {
+  if (!origin || ALLOWED_ORIGINS.has(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin || "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    res.setHeader(
+      "Access-Control-Allow-Methods",
+      "GET,POST,PATCH,DELETE,OPTIONS"
+    );
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   }
   if (req.method === "OPTIONS") return res.sendStatus(204);
@@ -726,6 +738,17 @@ app.post("/api/map/sync", async (_req, res) => {
   }
 });
 
+const spaDir = path.join(__dirname, "..", "JointEffort", "dist");
+if (fs.existsSync(spaDir)) {
+  app.use(express.static(spaDir));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) return next();
+    const indexHtml = path.join(spaDir, "index.html");
+    if (!fs.existsSync(indexHtml)) return next();
+    res.sendFile(indexHtml);
+  });
+}
+
 app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(500).json({ error: "Internal server error" });
@@ -748,6 +771,9 @@ async function bootstrap() {
 
   app.listen(PORT, () => {
     console.log(`Joint Effort listening on http://localhost:${PORT}`);
+    if (fs.existsSync(spaDir)) {
+      console.log(`App: http://localhost:${PORT}/`);
+    }
     console.log(`Map: http://localhost:${PORT}/map.html`);
   });
 }

@@ -3,7 +3,12 @@ const path = require("path");
 const Database = require("better-sqlite3");
 
 const DATA_DIR = path.join(__dirname, "data");
-const DB_PATH = path.join(DATA_DIR, "joint-effort.sqlite");
+// Railway (or similar) can mount a volume at DB_DIR so SQLite persists
+// without overwriting curriculum.json / programs.json in DATA_DIR.
+const DB_DIR = process.env.DB_DIR
+  ? path.resolve(process.env.DB_DIR)
+  : DATA_DIR;
+const DB_PATH = path.join(DB_DIR, "joint-effort.sqlite");
 
 /** @type {import("better-sqlite3").Database | null} */
 let db = null;
@@ -18,6 +23,9 @@ function getDb() {
 function initDb() {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+  if (!fs.existsSync(DB_DIR)) {
+    fs.mkdirSync(DB_DIR, { recursive: true });
   }
 
   db = new Database(DB_PATH);

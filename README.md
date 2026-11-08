@@ -31,6 +31,46 @@ npm run dev
 
 App: http://localhost:5173
 
+## Deploy to Railway + jointeffort.health
+
+Host **one** Railway service (Express API + built React app). Do not use GoDaddy web hosting for the Node app.
+
+### 1. Push this repo to GitHub, then on Railway
+
+1. [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub** → this repo  
+2. Root directory: repo root (uses [`package.json`](./package.json) + [`railway.toml`](./railway.toml))  
+3. Variables:
+   - `GEMINI_API_KEY` = your key  
+   - `DB_DIR` = `/data` (keeps SQLite on a volume; curriculum JSON stays in the image)  
+   - Optional: `CORS_ORIGINS` = `https://your-app.up.railway.app` while testing the default Railway URL  
+4. **Volume**: add a volume mounted at `/data` (matches `DB_DIR`)  
+5. Deploy, then open the Railway URL and check `/api/health`
+
+### 2. Custom domain `jointeffort.health`
+
+1. Railway service → **Settings** → **Networking** / **Custom Domain**  
+2. Add `jointeffort.health` and `www.jointeffort.health`  
+3. Copy the DNS records Railway shows  
+
+### 3. GoDaddy DNS
+
+In GoDaddy → domain **jointeffort.health** → **DNS**:
+
+- Usually **CNAME** `www` → the Railway host they give you  
+- For the **root** (`@`), follow Railway’s instructions (often an **A** record to their IP, or ALIAS/ANAME if offered)  
+- Remove conflicting old A/CNAME/forwarding records that point elsewhere  
+
+Wait until Railway shows SSL **Active** (often 5–60 minutes). Then use **https://jointeffort.health**.
+
+### 4. Smoke-test on the domain
+
+- Home loads  
+- `/api/health` → Gemini configured  
+- Exercises → Judge Demo (camera)  
+- Activity Board invites  
+
+Coach works without Auth0. If you use Auth0 later, add `https://jointeffort.health` to allowed callbacks.
+
 ## Judge demo path (2–3 minutes)
 
 1. Open **Exercises**
