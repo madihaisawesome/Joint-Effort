@@ -136,7 +136,7 @@ export default function Header() {
   const { isAuthenticated, login, logout } = useAuth()
   const location = useLocation()
   const links = isAuthenticated ? loggedIn : loggedOut
-  const showA11yBar = !isAuthenticated || location.pathname === "/ai"
+  const showA11yBar = !isAuthenticated && location.pathname !== "/ai"
 
   return (
     <header className="site-header">

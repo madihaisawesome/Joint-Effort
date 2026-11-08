@@ -671,6 +671,7 @@ html[data-contrast="high"] .exercise-card {
   width: min(72rem, calc(100% - 3rem));
   margin: 2.5rem auto 4rem;
 }
+.camera-back { margin-bottom: 1.25rem; }
 .camera-page h1 {
   font-family: var(--serif);
   font-size: clamp(2.4rem, 4vw, 3.6rem);
@@ -722,7 +723,6 @@ html[data-contrast="high"] .exercise-card {
   font-weight: 700;
   vertical-align: middle;
 }
-.pose-actions { position: sticky; bottom: 0.75rem; z-index: 2; }
 .pose-layout.is-preload {
   position: absolute;
   width: 1px;

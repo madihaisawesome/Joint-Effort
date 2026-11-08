@@ -72,7 +72,9 @@ export default function ExerciseDetail() {
             Open camera coach
           </Link>
         )}
-        <Link to="/exercises">Back to exercises</Link>
+        <Link className="pill" to="/exercises">
+          Back to exercises
+        </Link>
       </div>
     </article>
   )

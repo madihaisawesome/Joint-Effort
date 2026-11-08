@@ -42,6 +42,9 @@ export default function Ai() {
 
   return (
     <section className="camera-page">
+      <Link className="pill camera-back" to={returnTo}>
+        Back
+      </Link>
       <h1>{exercise.name}</h1>
       <p>
         Each step starts with a spoken instruction and a stick-figure demo. When you are ready, the
@@ -49,9 +52,6 @@ export default function Ai() {
         server.
       </p>
       <PoseCoach curriculumId={exercise.id} />
-      <Link className="pill" to={returnTo}>
-        Back
-      </Link>
     </section>
   )
 }
