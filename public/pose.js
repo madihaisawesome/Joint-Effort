@@ -1,6 +1,7 @@
 import {
   PoseLandmarker,
   FilesetResolver,
+  DrawingUtils,
 } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm";
 
 const LM = {
@@ -32,28 +33,8 @@ const KEY_LANDMARKS = [
 const VISIBILITY_MIN = 0.55;
 const CLOSE_SPAN_Y = 0.92;
 const EDGE_MARGIN = 0.03;
-
-// Body only. MediaPipe's full POSE_CONNECTIONS also wires the face,
-// which reads as a scribble of green lines around the head.
-const BONES = [
-  [11, 12],
-  [11, 23],
-  [12, 24],
-  [23, 24],
-  [11, 13],
-  [13, 15],
-  [12, 14],
-  [14, 16],
-  [23, 25],
-  [25, 27],
-  [27, 31],
-  [24, 26],
-  [26, 28],
-  [28, 32],
-];
-
-const JOINTS = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
-const DRAW_SMOOTH = 0.62;
+const ANGLE_SMOOTH = 0.28;
+const EVALUATE_EVERY_MS = 120;
 
 const video = document.getElementById("webcam");
 const canvas = document.getElementById("overlay");
@@ -61,6 +42,14 @@ const ctx = canvas.getContext("2d");
 const statusEl = document.getElementById("status");
 const guidanceEl = document.getElementById("guidance");
 const stopBtn = document.getElementById("stop-camera");
+const skipBtn = document.getElementById("skip-step");
+const stepCard = document.getElementById("step-card");
+const stepLabel = document.getElementById("step-label");
+const stepTitle = document.getElementById("step-title");
+const stepInstruction = document.getElementById("step-instruction");
+const holdProgress = document.getElementById("hold-progress");
+const sessionSummaryEl = document.getElementById("session-summary");
+const aiBadge = document.getElementById("ai-badge");
 
 const angleEls = {
   leftShoulder: document.getElementById("angle-l-shoulder"),
@@ -71,15 +60,33 @@ const angleEls = {
 
 /** @type {PoseLandmarker | null} */
 let poseLandmarker = null;
+/** @type {DrawingUtils | null} */
+let drawingUtils = null;
 /** @type {MediaStream | null} */
 let stream = null;
-/** @type {{ x: number, y: number, visibility: number }[] | null} */
-let drawPoints = null;
 let rafId = 0;
 let lastVideoTime = -1;
 let modelLoaded = false;
 let cameraRunning = false;
 let poseDetected = false;
+
+/** @type {{ sessionId: string, currentStep: number, completed: string[] } | null} */
+let session = null;
+/** @type {object | null} */
+let nextStep = null;
+let routineDone = false;
+let evaluateInFlight = false;
+let lastEvaluateAt = 0;
+let skipping = false;
+
+const smoothed = {
+  leftShoulder: null,
+  rightShoulder: null,
+  leftKnee: null,
+  rightKnee: null,
+  leftHip: null,
+  rightHip: null,
+};
 
 function setStatus() {
   const parts = [
@@ -91,26 +98,57 @@ function setStatus() {
   statusEl.className = `status-line ${modelLoaded && cameraRunning ? "ok" : ""}`;
 }
 
-function setGuidance(message) {
+function setGuidance(message, ok = false, aiEnhanced = false) {
   if (!message) {
     guidanceEl.hidden = true;
     guidanceEl.textContent = "";
+    guidanceEl.classList.remove("ok");
+    if (aiBadge) aiBadge.hidden = true;
     return;
   }
   guidanceEl.hidden = false;
   guidanceEl.textContent = message;
+  guidanceEl.classList.toggle("ok", Boolean(ok));
+  if (aiBadge) {
+    aiBadge.hidden = !aiEnhanced;
+    aiBadge.textContent = aiEnhanced ? "Gemini tip" : "";
+  }
 }
 
 function clearAngles() {
-  for (const el of Object.values(angleEls)) {
-    el.textContent = "—";
-  }
+  for (const el of Object.values(angleEls)) el.textContent = "—";
 }
 
 function setAnglesBlankReason(reason) {
-  for (const el of Object.values(angleEls)) {
-    el.textContent = reason;
+  for (const el of Object.values(angleEls)) el.textContent = reason;
+}
+
+function resetSmoothing() {
+  for (const key of Object.keys(smoothed)) smoothed[key] = null;
+}
+
+function smoothAngle(key, value) {
+  if (value == null || Number.isNaN(value)) return smoothed[key];
+  if (smoothed[key] == null) {
+    smoothed[key] = value;
+  } else {
+    smoothed[key] =
+      smoothed[key] * (1 - ANGLE_SMOOTH) + value * ANGLE_SMOOTH;
   }
+  return smoothed[key];
+}
+
+function smoothPoint(key, point) {
+  if (!point) return smoothed[key];
+  if (!smoothed[key]) {
+    smoothed[key] = { x: point.x, y: point.y };
+  } else {
+    smoothed[key] = {
+      x: smoothed[key].x * (1 - ANGLE_SMOOTH) + point.x * ANGLE_SMOOTH,
+      y: smoothed[key].y * (1 - ANGLE_SMOOTH) + point.y * ANGLE_SMOOTH,
+    };
+  }
+  return smoothed[key];
 }
 
 function landmarkVisibility(lm) {
@@ -146,15 +184,11 @@ function assessVisibility(landmarks) {
 
   const avgVis =
     key.reduce((sum, lm) => sum + landmarkVisibility(lm), 0) / key.length;
-  if (avgVis < VISIBILITY_MIN) {
-    return { ok: false, reason: "step back" };
-  }
+  if (avgVis < VISIBILITY_MIN) return { ok: false, reason: "step back" };
 
   const lowCount = key.filter((lm) => landmarkVisibility(lm) < VISIBILITY_MIN)
     .length;
-  if (lowCount >= 3) {
-    return { ok: false, reason: "step back" };
-  }
+  if (lowCount >= 3) return { ok: false, reason: "step back" };
 
   const xs = key.map((lm) => lm.x);
   const ys = key.map((lm) => lm.y);
@@ -163,7 +197,6 @@ function assessVisibility(landmarks) {
   const minY = Math.min(...ys);
   const maxY = Math.max(...ys);
   const spanY = maxY - minY;
-
   const clipped =
     minX < EDGE_MARGIN ||
     maxX > 1 - EDGE_MARGIN ||
@@ -173,143 +206,161 @@ function assessVisibility(landmarks) {
   if (spanY > CLOSE_SPAN_Y || clipped) {
     return { ok: false, reason: "step back" };
   }
-
   return { ok: true, reason: null };
 }
 
-function pointVisibility(lm) {
-  return lm?.visibility ?? landmarkVisibility(lm);
-}
-
-function smoothForDraw(landmarks) {
-  if (!drawPoints || drawPoints.length !== landmarks.length) {
-    drawPoints = landmarks.map((lm) => ({
-      x: lm.x,
-      y: lm.y,
-      visibility: landmarkVisibility(lm),
-    }));
-    return drawPoints;
-  }
-
-  for (let i = 0; i < landmarks.length; i++) {
-    const next = landmarks[i];
-    const prev = drawPoints[i];
-    if (!next) continue;
-    const visibility = landmarkVisibility(next);
-    if (!prev || visibility < 0.2 || prev.visibility < 0.2) {
-      drawPoints[i] = { x: next.x, y: next.y, visibility };
-      continue;
+function renderStep(summaryText) {
+  if (routineDone || !nextStep) {
+    stepCard.classList.add("complete");
+    stepLabel.textContent = "All done";
+    stepTitle.textContent = "Routine complete";
+    stepInstruction.textContent =
+      "Nice work — you’ve finished every step in this session.";
+    holdProgress.hidden = true;
+    skipBtn.disabled = true;
+    if (sessionSummaryEl) {
+      if (summaryText) {
+        sessionSummaryEl.hidden = false;
+        sessionSummaryEl.textContent = summaryText;
+      } else {
+        sessionSummaryEl.hidden = true;
+        sessionSummaryEl.textContent = "";
+      }
     }
-    prev.x += (next.x - prev.x) * DRAW_SMOOTH;
-    prev.y += (next.y - prev.y) * DRAW_SMOOTH;
-    prev.visibility = visibility;
+    setGuidance(summaryText || "Routine complete", true, Boolean(summaryText));
+    return;
   }
-  return drawPoints;
+
+  stepCard.classList.remove("complete");
+  if (sessionSummaryEl) {
+    sessionSummaryEl.hidden = true;
+    sessionSummaryEl.textContent = "";
+  }
+  const index = (session?.currentStep ?? 0) + 1;
+  stepLabel.textContent = `Step ${index} · ${nextStep.exercise}`;
+  stepTitle.textContent = nextStep.title;
+  stepInstruction.textContent = nextStep.instruction;
+  skipBtn.disabled = !session || !cameraRunning;
 }
 
-function toPixel(point) {
-  return {
-    x: point.x * canvas.width,
-    y: point.y * canvas.height,
-  };
+function applySessionPayload(data) {
+  session = data.session;
+  nextStep = data.nextStep;
+  routineDone = Boolean(data.done) || !data.nextStep;
+  const summaryText = data.summary || data.evaluation?.feedback || null;
+  renderStep(routineDone ? summaryText : null);
+
+  const evaluation = data.evaluation;
+  if (!evaluation) return;
+
+  if (routineDone) {
+    setGuidance(
+      data.summary || evaluation.feedback || "Routine complete",
+      true,
+      Boolean(evaluation.aiEnhanced || data.summary)
+    );
+    return;
+  }
+
+  if (evaluation.passed) {
+    setGuidance(
+      evaluation.feedback || "Step complete",
+      true,
+      Boolean(evaluation.aiEnhanced)
+    );
+  } else if (evaluation.feedback) {
+    const isStepBack = /step back/i.test(evaluation.feedback);
+    setGuidance(
+      evaluation.feedback,
+      Boolean(evaluation.inRange) && !isStepBack,
+      Boolean(evaluation.aiEnhanced)
+    );
+  }
+
+  const progress = evaluation.progress;
+  if (progress && typeof progress.reps === "number" && !routineDone) {
+    holdProgress.hidden = false;
+    let text = `Reps ${progress.reps} / ${progress.targetReps}`;
+    if (
+      typeof progress.heldSeconds === "number" &&
+      typeof progress.holdSeconds === "number" &&
+      progress.holdSeconds > 0
+    ) {
+      text += ` · hold ${progress.heldSeconds.toFixed(1)}s / ${progress.holdSeconds}s`;
+    }
+    holdProgress.textContent = text;
+  } else if (
+    progress &&
+    typeof progress.heldSeconds === "number" &&
+    typeof progress.holdSeconds === "number" &&
+    !routineDone
+  ) {
+    holdProgress.hidden = false;
+    holdProgress.textContent = `Hold ${progress.heldSeconds.toFixed(1)}s / ${progress.holdSeconds}s`;
+  } else if (!routineDone) {
+    holdProgress.hidden = true;
+  }
 }
 
-function strokeSegment(a, b, minVisibility) {
-  if (!a || !b) return false;
-  const visibility = Math.min(pointVisibility(a), pointVisibility(b));
-  if (visibility < minVisibility) return false;
-  const start = toPixel(a);
-  const end = toPixel(b);
-  ctx.save();
-  ctx.globalAlpha *= 0.28 + 0.72 * Math.min(1, visibility);
-  ctx.beginPath();
-  ctx.moveTo(start.x, start.y);
-  ctx.lineTo(end.x, end.y);
-  ctx.stroke();
-  ctx.restore();
-  return true;
+async function startSession() {
+  const res = await fetch("/api/sessions", { method: "POST" });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Could not start session");
+  applySessionPayload(data);
 }
 
-function neckPoint(points) {
-  const nose = points[0];
-  const left = points[LM.LEFT_SHOULDER];
-  const right = points[LM.RIGHT_SHOULDER];
-  if (!nose || !left || !right || pointVisibility(nose) <= 0.35) return null;
-  return {
-    x: (left.x + right.x) / 2,
-    y: (left.y + right.y) / 2,
-    visibility: Math.min(
-      pointVisibility(left),
-      pointVisibility(right),
-      pointVisibility(nose)
-    ),
-  };
-}
+async function evaluateMetrics(metrics) {
+  if (!session || !nextStep || routineDone || evaluateInFlight || skipping) {
+    return;
+  }
+  const now = performance.now();
+  if (now - lastEvaluateAt < EVALUATE_EVERY_MS) return;
+  lastEvaluateAt = now;
+  evaluateInFlight = true;
 
-function drawSkeleton(points) {
-  const shortSide = Math.min(canvas.width, canvas.height);
-  const boneWidth = Math.max(7, shortSide * 0.016);
-  const jointRadius = boneWidth * 0.62;
-  const neck = neckPoint(points);
-  const torso = [
-    points[LM.LEFT_SHOULDER],
-    points[LM.RIGHT_SHOULDER],
-    points[LM.RIGHT_HIP],
-    points[LM.LEFT_HIP],
-  ];
-
-  if (torso.every((point) => point && pointVisibility(point) > 0.4)) {
-    ctx.beginPath();
-    torso.forEach((point, index) => {
-      const pixel = toPixel(point);
-      if (index === 0) ctx.moveTo(pixel.x, pixel.y);
-      else ctx.lineTo(pixel.x, pixel.y);
+  try {
+    const res = await fetch(`/api/sessions/${session.sessionId}/evaluate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        stepId: nextStep.id,
+        timestamp: Date.now(),
+        metrics,
+      }),
     });
-    ctx.closePath();
-    ctx.fillStyle = "rgba(52, 211, 153, 0.16)";
-    ctx.fill();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Evaluate failed");
+    applySessionPayload(data);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    evaluateInFlight = false;
   }
+}
 
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-
-  const paintBones = () => {
-    for (const [start, end] of BONES) {
-      strokeSegment(points[start], points[end], 0.3);
+async function skipStep() {
+  if (!session || !nextStep || routineDone || skipping) return;
+  skipping = true;
+  skipBtn.disabled = true;
+  try {
+    const res = await fetch(`/api/sessions/${session.sessionId}/progress`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stepId: nextStep.id, passed: true }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Skip failed");
+    resetSmoothing();
+    applySessionPayload(data);
+    if (!routineDone) {
+      setGuidance(`Skipped — next: ${nextStep.title}`);
     }
-    if (neck) strokeSegment(neck, points[0], 0.3);
-  };
-
-  ctx.save();
-  ctx.shadowColor = "rgba(74, 222, 128, 0.7)";
-  ctx.shadowBlur = boneWidth * 1.35;
-  ctx.strokeStyle = "#34d399";
-  ctx.lineWidth = boneWidth;
-  paintBones();
-  ctx.restore();
-
-  ctx.strokeStyle = "rgba(240, 253, 244, 0.92)";
-  ctx.lineWidth = Math.max(2, boneWidth * 0.34);
-  paintBones();
-
-  for (const index of JOINTS) {
-    const point = points[index];
-    if (!point || pointVisibility(point) < 0.35) continue;
-    const pixel = toPixel(point);
-    ctx.save();
-    ctx.globalAlpha = 0.4 + 0.6 * Math.min(1, pointVisibility(point));
-    ctx.beginPath();
-    ctx.fillStyle = "#059669";
-    ctx.arc(pixel.x, pixel.y, jointRadius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.lineWidth = Math.max(1.5, jointRadius * 0.22);
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.fillStyle = "#f8fafc";
-    ctx.arc(pixel.x, pixel.y, jointRadius * 0.38, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+  } catch (err) {
+    setGuidance(err.message || "Skip failed");
+    skipBtn.disabled = false;
+  } finally {
+    skipping = false;
+    if (!routineDone && cameraRunning) skipBtn.disabled = false;
   }
 }
 
@@ -330,17 +381,14 @@ function stopCamera() {
   }
 
   if (stream) {
-    for (const track of stream.getTracks()) {
-      track.stop();
-    }
+    for (const track of stream.getTracks()) track.stop();
     stream = null;
   }
 
   video.srcObject = null;
   cameraRunning = false;
   poseDetected = false;
-  drawPoints = null;
-  stopBtn.disabled = true;
+  skipBtn.disabled = true;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   clearAngles();
   setGuidance(null);
@@ -355,6 +403,8 @@ async function startCamera() {
     return;
   }
 
+  stopCamera();
+
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
@@ -367,13 +417,13 @@ async function startCamera() {
     video.srcObject = stream;
     await video.play();
     cameraRunning = true;
-    stopBtn.disabled = false;
+    skipBtn.disabled = !session || routineDone;
     setStatus();
     lastVideoTime = -1;
     rafId = requestAnimationFrame(predictFrame);
   } catch (err) {
     cameraRunning = false;
-    statusEl.textContent = `Camera blocked or unavailable — ${err.message || err}`;
+    statusEl.textContent = `Camera blocked or unavailable — ${err.message || err}. Close other apps/tabs using the camera, then refresh.`;
     statusEl.className = "status-line warn";
   }
 }
@@ -392,45 +442,84 @@ function predictFrame() {
     const landmarks = result.landmarks?.[0];
     if (!landmarks) {
       poseDetected = false;
-      drawPoints = null;
+      resetSmoothing();
       clearAngles();
-      setGuidance(null);
       setStatus();
+      evaluateMetrics({ usable: false });
     } else {
       poseDetected = true;
       setStatus();
-      drawSkeleton(smoothForDraw(landmarks));
+
+      drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS, {
+        color: "#4ade80",
+        lineWidth: 3,
+      });
+      drawingUtils.drawLandmarks(landmarks, {
+        color: "#f8fafc",
+        fillColor: "#22c55e",
+        lineWidth: 1,
+        radius: 3,
+      });
 
       const visibility = assessVisibility(landmarks);
       if (!visibility.ok) {
-        setGuidance("step back");
+        resetSmoothing();
+        setGuidance(
+          "Step back so your full body fits in the camera — we need clearer landmarks"
+        );
         setAnglesBlankReason("step back");
+        holdProgress.hidden = true;
+        evaluateMetrics({ usable: false });
       } else {
-        setGuidance(null);
-        const ls = angleAt(
-          landmarks[LM.LEFT_HIP],
-          landmarks[LM.LEFT_SHOULDER],
-          landmarks[LM.LEFT_ELBOW]
+        const ls = smoothAngle(
+          "leftShoulder",
+          angleAt(
+            landmarks[LM.LEFT_HIP],
+            landmarks[LM.LEFT_SHOULDER],
+            landmarks[LM.LEFT_ELBOW]
+          )
         );
-        const rs = angleAt(
-          landmarks[LM.RIGHT_HIP],
-          landmarks[LM.RIGHT_SHOULDER],
-          landmarks[LM.RIGHT_ELBOW]
+        const rs = smoothAngle(
+          "rightShoulder",
+          angleAt(
+            landmarks[LM.RIGHT_HIP],
+            landmarks[LM.RIGHT_SHOULDER],
+            landmarks[LM.RIGHT_ELBOW]
+          )
         );
-        const lk = angleAt(
-          landmarks[LM.LEFT_HIP],
-          landmarks[LM.LEFT_KNEE],
-          landmarks[LM.LEFT_ANKLE]
+        const lk = smoothAngle(
+          "leftKnee",
+          angleAt(
+            landmarks[LM.LEFT_HIP],
+            landmarks[LM.LEFT_KNEE],
+            landmarks[LM.LEFT_ANKLE]
+          )
         );
-        const rk = angleAt(
-          landmarks[LM.RIGHT_HIP],
-          landmarks[LM.RIGHT_KNEE],
-          landmarks[LM.RIGHT_ANKLE]
+        const rk = smoothAngle(
+          "rightKnee",
+          angleAt(
+            landmarks[LM.RIGHT_HIP],
+            landmarks[LM.RIGHT_KNEE],
+            landmarks[LM.RIGHT_ANKLE]
+          )
         );
+        const leftHip = smoothPoint("leftHip", landmarks[LM.LEFT_HIP]);
+        const rightHip = smoothPoint("rightHip", landmarks[LM.RIGHT_HIP]);
+
         angleEls.leftShoulder.textContent = formatAngle(ls);
         angleEls.rightShoulder.textContent = formatAngle(rs);
         angleEls.leftKnee.textContent = formatAngle(lk);
         angleEls.rightKnee.textContent = formatAngle(rk);
+
+        evaluateMetrics({
+          usable: true,
+          leftShoulderAngle: ls,
+          rightShoulderAngle: rs,
+          leftKneeAngle: lk,
+          rightKneeAngle: rk,
+          leftHip,
+          rightHip,
+        });
       }
     }
 
@@ -442,6 +531,17 @@ function predictFrame() {
 
 async function init() {
   setStatus();
+  drawingUtils = new DrawingUtils(ctx);
+  skipBtn.addEventListener("click", skipStep);
+  stopBtn.addEventListener("click", stopCamera);
+
+  try {
+    await startSession();
+  } catch (err) {
+    stepLabel.textContent = "Session error";
+    stepTitle.textContent = "Could not start";
+    stepInstruction.textContent = err.message || String(err);
+  }
 
   try {
     const vision = await FilesetResolver.forVisionTasks(
@@ -458,7 +558,6 @@ async function init() {
     modelLoaded = true;
     setStatus();
   } catch (err) {
-    // GPU may fail on some machines — retry CPU
     try {
       const vision = await FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
@@ -480,7 +579,6 @@ async function init() {
     }
   }
 
-  stopBtn.addEventListener("click", stopCamera);
   await startCamera();
 }
 

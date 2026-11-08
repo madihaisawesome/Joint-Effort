@@ -9,6 +9,8 @@ Pose video never leaves the browser. The server only stores session progress and
 ```bash
 cd backend
 npm install
+copy .env.example .env
+# put GEMINI_API_KEY in .env (optional — app works without it)
 npm start
 ```
 
@@ -17,6 +19,26 @@ Map: http://localhost:3000/map.html
 API viewer: http://localhost:3000/viewer.html
 
 On first start the backend syncs Calgary recreation facilities from [Open Calgary](https://data.calgary.ca/resource/hxfu-6d96.json) into a local SQLite cache (`backend/data/joint-effort.sqlite`), then merges curated programs and walking-buddy pins.
+
+## Gemini coaching (MLH / Best Use of Gemini API)
+
+**Pose video never leaves the browser.** Gemini only receives numeric angles, reps/phase, and curriculum text, then returns short coaching tips and an end-of-routine summary.
+
+1. Create a key at [Google AI Studio](https://aistudio.google.com/apikey)
+2. Set `GEMINI_API_KEY` in `backend/.env`
+3. Restart the server — `/api/health` shows `"gemini": { "configured": true }`
+
+Tips are throttled (~every 4s, or when feedback changes / a step passes). Without a key, rule-based feedback still works.
+
+Demo tip endpoint:
+
+```bash
+curl -X POST http://localhost:3000/api/sessions/SESSION_ID/coach ^
+  -H "Content-Type: application/json" ^
+  -d "{\"stepId\":\"step-1-arm-raise\",\"metrics\":{\"usable\":true,\"leftShoulderAngle\":60,\"rightShoulderAngle\":90}}"
+```
+
+Auth0 (user accounts) is handled separately by a teammate and is not required for Gemini.
 
 ## Pose coach (camera)
 
@@ -60,6 +82,26 @@ curl -X POST http://localhost:3000/api/sessions/SESSION_ID/progress ^
   -d "{\"stepId\":\"step-1-arm-raise\",\"passed\":true}"
 ```
 
+### Session + evaluate (server-side exercise rules)
+
+Send numeric metrics only (no video). The server tracks hold time / reps and advances the step when rules pass.
+
+```bash
+curl -X POST http://localhost:3000/api/sessions/SESSION_ID/evaluate ^
+  -H "Content-Type: application/json" ^
+  -d "{\"stepId\":\"step-1-arm-raise\",\"metrics\":{\"usable\":true,\"leftShoulderAngle\":90,\"rightShoulderAngle\":88}}"
+```
+
+Metrics by exercise:
+
+| Exercise | Fields |
+|----------|--------|
+| arm_raise | `leftShoulderAngle`, `rightShoulderAngle`, `usable` |
+| sit_to_stand | `leftKneeAngle`, `rightKneeAngle`, `usable` |
+| balance_hold | `leftHip`/`rightHip` `{x,y}`, `usable` |
+
+Set `usable: false` (e.g. on-device “step back”) so the server resets hold timers instead of counting bad frames.
+
 ### Buddies
 
 ```bash
@@ -73,6 +115,6 @@ curl -X POST http://localhost:3000/api/buddies ^
 
 | Step | Fields |
 |------|--------|
-| arm_raise | `targetAngle` (90), `tolerance` (15), `holdSeconds` (2) |
-| sit_to_stand | `seatedAngle` (90), `targetAngle` (165 standing), `tolerance` (15), `reps` (3) |
-| balance_hold | `holdSeconds` (5), `maxHipMovement` (0.04), `tolerance` (15 for hip level) |
+| arm_raise | `targetAngle` (90), `tolerance` (15), `reps` (5), `minHoldSeconds` (0.4) |
+| sit_to_stand | `seatedAngle` (90), `targetAngle` (165 standing), `tolerance` (15), `reps` (5) |
+| balance_hold | `holdSeconds` (2 per hold), `reps` (5), `maxHipMovement` (0.04), `tolerance` (15) |

@@ -8,20 +8,51 @@
     <link rel="stylesheet" href="/pose.css" />
   </head>
   <body class="pose-page">
+    <div class="safety-banner" role="note">
+      <p>
+        <strong>Not medical advice.</strong> Stop if you feel pain, dizziness,
+        or unusual shortness of breath. Talk to a clinician before starting a
+        new exercise routine.
+      </p>
+      <p class="privacy-line">
+        Privacy: camera video stays on your device and is never uploaded.
+      </p>
+    </div>
+
     <header class="pose-header">
       <div>
         <h1>Joint Effort</h1>
-        <p>On-device pose coach — video stays in your browser</p>
+        <p>Gentle on-device pose coach for Calgary movers</p>
       </div>
-      <nav class="pose-nav">
-        <a href="/map.html">Map</a>
-        <a href="/viewer.html">API viewer</a>
-        <button type="button" id="stop-camera" disabled>Stop camera</button>
+      <nav class="pose-nav" aria-label="Site">
+        <a class="nav-link" href="#community">Community</a>
+        <a class="nav-link" href="/map.html">Map</a>
+        <a class="nav-link" href="/viewer.html">API</a>
+        <button type="button" class="btn-secondary" id="skip-step" disabled>
+          Skip step
+        </button>
       </nav>
     </header>
 
+    <div class="stop-bar" role="region" aria-label="Camera controls">
+      <button type="button" class="btn-stop" id="stop-camera">
+        Stop camera
+      </button>
+      <span class="stop-hint">Always available — releases the webcam</span>
+    </div>
+
     <p id="status" class="status-line" role="status">Loading model…</p>
+
+    <section id="step-card" class="step-card" aria-live="polite">
+      <p id="step-label" class="meta">Starting session…</p>
+      <h2 id="step-title">—</h2>
+      <p id="step-instruction"></p>
+      <p id="hold-progress" class="hold-progress" hidden></p>
+      <p id="session-summary" class="session-summary" hidden></p>
+    </section>
+
     <p id="guidance" class="guidance" hidden></p>
+    <p id="ai-badge" class="ai-badge" hidden>Gemini tip</p>
 
     <div class="pose-layout">
       <div class="stage">
@@ -50,12 +81,79 @@
           </div>
         </dl>
         <p class="meta">
-          Angles update as you move. Low-visibility poses show “step back”
-          instead of noisy numbers.
+          Angles are smoothed. Hold timer runs only while in range.
         </p>
       </aside>
     </div>
 
+    <section id="community" class="community" aria-label="Community extras">
+      <h2>Nearby Calgary programs</h2>
+      <p class="meta" id="programs-note">Loading verified listings…</p>
+      <div id="programs-list" class="programs-list"></div>
+
+      <h2>Activity invite board</h2>
+      <p class="meta">
+        Share a gentle meetup — walks, park yoga, stretching, tai chi, and more.
+        Keep each field under 200 characters.
+      </p>
+      <form id="buddy-form" class="buddy-form">
+        <label>
+          Name
+          <input name="name" required maxlength="200" autocomplete="nickname" />
+        </label>
+        <label>
+          Activity
+          <input
+            name="activity"
+            required
+            maxlength="200"
+            placeholder="e.g. Yoga in the park"
+            list="activity-suggestions"
+          />
+          <datalist id="activity-suggestions">
+            <option value="Walking"></option>
+            <option value="Yoga in the park"></option>
+            <option value="Chair yoga"></option>
+            <option value="Stretching"></option>
+            <option value="Tai chi"></option>
+            <option value="Gentle strength"></option>
+            <option value="Sit-to-stand practice"></option>
+          </datalist>
+        </label>
+        <label>
+          Place / area
+          <input
+            name="area"
+            required
+            maxlength="200"
+            placeholder="e.g. Prince's Island Park"
+          />
+        </label>
+        <label>
+          When
+          <input
+            name="time"
+            required
+            maxlength="200"
+            placeholder="e.g. Every Thursday 10am"
+          />
+        </label>
+        <label class="span-2">
+          Details
+          <input
+            name="note"
+            required
+            maxlength="200"
+            placeholder="Beginners welcome — bring a mat"
+          />
+        </label>
+        <button type="submit" class="btn-primary">Post activity invite</button>
+      </form>
+      <p id="buddy-status" class="meta" role="status"></p>
+      <ul id="buddies-list" class="buddies-list"></ul>
+    </section>
+
     <script type="module" src="/pose.js"></script>
+    <script type="module" src="/community.js"></script>
   </body>
 </html>

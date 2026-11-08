@@ -5,29 +5,31 @@
     {
       "id": "step-1-arm-raise",
       "title": "Arm Raise",
-      "instruction": "Slowly raise both arms out to the side until they are about shoulder height. Hold steady.",
+      "instruction": "Raise both arms out to shoulder height, then lower them. Repeat 5 times.",
       "exercise": "arm_raise",
       "targetAngle": 90,
       "tolerance": 15,
-      "holdSeconds": 2
+      "reps": 5,
+      "minHoldSeconds": 0.4
     },
     {
       "id": "step-2-sit-to-stand",
       "title": "Sit to Stand",
-      "instruction": "From a seated position, stand up fully, then sit back down. Repeat at your own pace.",
+      "instruction": "From a seated position, stand up fully, then sit back down. Repeat 5 times at your own pace.",
       "exercise": "sit_to_stand",
       "targetAngle": 165,
       "seatedAngle": 90,
       "tolerance": 15,
-      "reps": 3
+      "reps": 5
     },
     {
       "id": "step-3-balance-hold",
       "title": "Balance Hold",
-      "instruction": "Stand comfortably with both feet on the floor. Keep your hips level and stay as still as you can.",
+      "instruction": "Stand with hips level and stay still for a short hold. Repeat 5 steady holds.",
       "exercise": "balance_hold",
       "tolerance": 15,
-      "holdSeconds": 5,
+      "holdSeconds": 2,
+      "reps": 5,
       "maxHipMovement": 0.04
     }
   ]
