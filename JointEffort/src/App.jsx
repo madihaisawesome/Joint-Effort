@@ -8,6 +8,7 @@ import { PreferencesProvider } from "./context/Preferences.jsx"
 import { SpeechProvider } from "./context/Speech.jsx"
 import { WorkoutsProvider } from "./context/Workouts.jsx"
 import About from "./pages/About.jsx"
+import Activity from "./pages/Activity.jsx"
 import Ai from "./pages/Ai.jsx"
 import Calendar from "./pages/Calendar.jsx"
 import Events from "./pages/Events.jsx"
@@ -41,6 +42,7 @@ export default function App() {
                       <Route index element={<Home />} />
                       <Route path="about" element={<About />} />
                       <Route path="events" element={<Events />} />
+                      <Route path="activity" element={<Activity />} />
                       <Route path="exercises" element={<Exercises />} />
                       <Route path="exercises/:id" element={<ExerciseDetail />} />
                       <Route path="login" element={<Login />} />

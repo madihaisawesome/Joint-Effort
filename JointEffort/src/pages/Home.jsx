@@ -35,9 +35,9 @@ export default function Home() {
                 Open camera coach
                 <img src={arrow} alt="" width="34" height="34" />
               </Link>
-              <Link className="text-link" to="/events">
+              <Link className="text-link" to="/activity">
                 <img src={phone} alt="" width="35" height="35" />
-                See events
+                Post an activity invite
               </Link>
               {isAuthenticated ? (
                 <Link className="text-link" to="/calendar">
@@ -78,8 +78,8 @@ export default function Home() {
           <Link className="pill pill-dark" to="/exercises">
             Browse exercises
           </Link>
-          <Link className="pill" to="/events">
-            Community events &amp; invites
+          <Link className="pill" to="/activity">
+            Activity invite board
           </Link>
         </div>
       </section>

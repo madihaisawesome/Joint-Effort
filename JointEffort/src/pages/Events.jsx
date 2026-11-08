@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import ActivityBoard from "../components/ActivityBoard.jsx"
 import EventMap from "../components/EventMap.jsx"
 import { events as demoEvents } from "../data/events.js"
 import { usePlace } from "../context/Place.jsx"
@@ -372,7 +371,6 @@ export default function Events() {
           />
         </div>
       </div>
-      <ActivityBoard />
     </section>
   )
 }

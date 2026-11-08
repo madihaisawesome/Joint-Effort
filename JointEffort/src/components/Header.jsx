@@ -9,13 +9,15 @@ const loggedOut = [
   { to: "/", label: "Home", end: true },
   { to: "/about", label: "About" },
   { to: "/exercises", label: "Exercises" },
-  { to: "/events", label: "Community Events" },
+  { to: "/events", label: "Events" },
+  { to: "/activity", label: "Activity board" },
 ]
 
 const loggedIn = [
   { to: "/profile", label: "Profile" },
   { to: "/exercises", label: "Exercises" },
-  { to: "/events", label: "Community Events" },
+  { to: "/events", label: "Events" },
+  { to: "/activity", label: "Activity board" },
   { to: "/calendar", label: "Calendar" },
 ]
 

@@ -727,21 +727,73 @@ html[data-contrast="high"] .exercise-card {
   display: grid;
   gap: 0.55rem;
 }
-.activity-board {
+.activity-page {
   width: min(72rem, calc(100% - 3rem));
-  margin: 2rem auto 4rem;
+  margin: 1.75rem auto 3.5rem;
 }
-.activity-board > p { max-width: 65ch; font-size: 1.15rem; }
+.activity-hero {
+  margin-bottom: 1.25rem;
+  max-width: 46rem;
+}
+.activity-hero h1 {
+  font-family: var(--serif);
+  font-size: clamp(2.4rem, 4.5vw, 3.4rem);
+  line-height: 1.1;
+  margin: 0 0 0.55rem;
+}
+.activity-hero p {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--sage);
+}
+.activity-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(18rem, 0.9fr);
+  gap: 1.35rem;
+  align-items: start;
+}
+.activity-feed,
+.activity-compose {
+  border: 2px solid var(--green);
+  border-radius: 1.35rem;
+  padding: 1.35rem 1.4rem 1.5rem;
+}
+.activity-feed {
+  background: var(--paper);
+}
+.activity-compose {
+  background: var(--panel);
+}
+.activity-feed h2,
+.activity-compose h2 {
+  font-family: var(--serif);
+  font-size: clamp(1.55rem, 2.5vw, 1.95rem);
+  margin: 0 0 0.75rem;
+  line-height: 1.15;
+}
+.activity-compose > p {
+  margin: 0 0 0.85rem;
+  color: var(--sage);
+  font-size: 1.05rem;
+}
+.activity-feed-hint,
+.activity-feed-empty {
+  margin: 0 0 0.9rem;
+  font-size: 1.1rem;
+  color: var(--sage);
+}
+.activity-feed-empty { margin-bottom: 0; }
 .activity-form {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.85rem 1rem;
-  margin: 1rem 0;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin: 0;
 }
 .activity-form label {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.3rem;
   font-weight: 700;
+  font-size: 1rem;
 }
 .activity-form .span-2 { grid-column: 1 / -1; }
 .activity-form input {
@@ -751,25 +803,115 @@ html[data-contrast="high"] .exercise-card {
   border-radius: 0.75rem;
   padding: 0.55rem 0.75rem;
   font: inherit;
-  background: var(--panel);
+  background: var(--paper);
+  color: var(--ink);
 }
 .activity-list {
   list-style: none;
-  margin: 1rem 0 0;
+  margin: 0;
   padding: 0;
   display: grid;
   gap: 0.75rem;
 }
 .activity-list li {
+  margin: 0;
+  padding: 0;
   border: 2px solid var(--line);
-  border-radius: 1rem;
-  padding: 0.9rem 1rem;
-  background: var(--panel);
-  display: grid;
-  gap: 0.25rem;
+  border-radius: 1.1rem;
+  background: var(--paper);
+  overflow: hidden;
 }
-@media (max-width: 720px) {
-  .activity-form { grid-template-columns: 1fr; }
+.activity-list li.is-expanded {
+  border-color: var(--green);
+}
+.activity-hit {
+  width: 100%;
+  display: grid;
+  gap: 0.3rem;
+  text-align: left;
+  border: 0;
+  border-radius: 0;
+  padding: 1.05rem 1.15rem;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+}
+.activity-hit:hover,
+.activity-hit.is-selected {
+  background: color-mix(in srgb, var(--mint) 35%, white);
+}
+.activity-hit-title {
+  font-family: var(--serif);
+  font-size: clamp(1.3rem, 2vw, 1.6rem);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.activity-hit-meta {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--green);
+}
+.activity-hit-action {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--sage);
+}
+.activity-detail {
+  margin: 0;
+  padding: 0 1.15rem 1.15rem;
+  border: 0;
+  border-top: 2px solid var(--line);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--mint) 18%, white);
+}
+.activity-list li.is-expanded .activity-detail {
+  border-top-color: color-mix(in srgb, var(--green) 25%, var(--line));
+}
+.activity-detail-grid {
+  margin: 0;
+  padding-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem 1rem;
+}
+.activity-detail-grid > div {
+  display: grid;
+  gap: 0.2rem;
+}
+.activity-detail-grid .span-2 { grid-column: 1 / -1; }
+.activity-detail-grid dt {
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sage);
+}
+.activity-detail-grid dd {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.4;
+  color: var(--ink);
+}
+html[data-contrast="high"] .activity-feed,
+html[data-contrast="high"] .activity-compose,
+html[data-contrast="high"] .activity-list li,
+html[data-contrast="high"] .activity-detail,
+html[data-contrast="high"] .activity-form input {
+  background: #ffffff;
+}
+@media (max-width: 640px) {
+  .activity-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 860px) {
+  .activity-layout {
+    grid-template-columns: 1fr;
+  }
+  .activity-compose {
+    order: 2;
+  }
 }
 .pose-layout {
   display: grid;
