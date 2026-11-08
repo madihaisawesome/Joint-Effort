@@ -88,6 +88,31 @@ export function postBuddy(payload) {
   })
 }
 
+export function updateBuddy(id, payload) {
+  return api(`/api/buddies/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteBuddy(id) {
+  const response = await fetch(
+    `${API_BASE}/api/buddies/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  )
+  if (!response.ok && response.status !== 204) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(data.error || response.statusText || "Delete failed")
+  }
+}
+
+export function joinBuddyInterest(id, action = "join") {
+  return api(`/api/buddies/${encodeURIComponent(id)}/interest`, {
+    method: "POST",
+    body: JSON.stringify({ action: action === "leave" ? "leave" : "join" }),
+  })
+}
+
 export function getMapPlaces(params = {}) {
   const query = new URLSearchParams(params).toString()
   return api(`/api/map/places${query ? `?${query}` : ""}`)

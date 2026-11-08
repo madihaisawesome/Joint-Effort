@@ -727,6 +727,27 @@ html[data-contrast="high"] .exercise-card {
 }
 .pose-demo-copy p { margin: 0 0 0.75rem; max-width: 42ch; }
 .pose-demo-copy .button-row { margin-top: 0.5rem; }
+.pose-next-step {
+  margin-top: 1.25rem;
+  padding: 1.15rem 1.25rem;
+  border: 1px solid color-mix(in srgb, var(--line, #d6dde5) 85%, transparent);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--mint, #d8f0e4) 55%, white);
+  display: grid;
+  gap: 0.55rem;
+  max-width: 36rem;
+}
+.pose-next-step h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.pose-next-step p {
+  margin: 0;
+}
+.pose-next-step .pill {
+  justify-self: start;
+  text-decoration: none;
+}
 .pose-practice-hint {
   display: flex;
   gap: 1rem;
@@ -828,7 +849,8 @@ html[data-contrast="high"] .exercise-card {
   align-items: start;
 }
 .activity-feed,
-.activity-compose {
+.activity-compose,
+.activity-mine {
   border: 2px solid var(--green);
   border-radius: 1.35rem;
   padding: 1.35rem 1.4rem 1.5rem;
@@ -836,20 +858,47 @@ html[data-contrast="high"] .exercise-card {
 .activity-feed {
   background: var(--paper);
 }
+.activity-side {
+  display: grid;
+  gap: 1.15rem;
+}
+.activity-mine {
+  background: color-mix(in srgb, var(--mint) 40%, white);
+}
 .activity-compose {
   background: var(--panel);
 }
 .activity-feed h2,
-.activity-compose h2 {
+.activity-compose h2,
+.activity-mine h2 {
   font-family: var(--serif);
   font-size: clamp(1.55rem, 2.5vw, 1.95rem);
   margin: 0 0 0.75rem;
   line-height: 1.15;
 }
-.activity-compose > p {
+.activity-compose > p,
+.activity-mine > p {
   margin: 0 0 0.85rem;
   color: var(--sage);
   font-size: 1.05rem;
+}
+.activity-mine-list {
+  margin-top: 0.35rem;
+}
+.activity-manage-row,
+.activity-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+.activity-manage-row {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid color-mix(in srgb, var(--line, #d6dde5) 80%, transparent);
+}
+.activity-form-actions {
+  margin-top: 0.15rem;
 }
 .activity-feed-hint,
 .activity-feed-empty {
@@ -922,6 +971,26 @@ html[data-contrast="high"] .exercise-card {
   line-height: 1.2;
   color: var(--ink);
 }
+.activity-hit-interest {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.92rem;
+  color: var(--ink-soft, #4a5560);
+}
+.activity-join-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid color-mix(in srgb, var(--line, #d6dde5) 80%, transparent);
+}
+.activity-join-note {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--ink-soft, #4a5560);
+}
 .activity-hit-meta {
   font-size: 1.1rem;
   font-weight: 700;
@@ -970,6 +1039,7 @@ html[data-contrast="high"] .exercise-card {
 }
 html[data-contrast="high"] .activity-feed,
 html[data-contrast="high"] .activity-compose,
+html[data-contrast="high"] .activity-mine,
 html[data-contrast="high"] .activity-list li,
 html[data-contrast="high"] .activity-detail,
 html[data-contrast="high"] .activity-form input {
@@ -1519,6 +1589,39 @@ html[data-contrast="high"] .pose-guidance {
   box-shadow: var(--shadow);
 }
 .je-pin.is-selected { background: var(--green); color: #ffffff; }
+.je-pin.is-interested {
+  background: var(--mint);
+  border-color: var(--green);
+  color: var(--green);
+}
+.je-pin.is-interested.is-selected {
+  background: var(--green);
+  color: var(--mint);
+  box-shadow: 0 0 0 3px var(--mint), var(--shadow);
+}
+.map-interested {
+  font-weight: 700;
+  color: var(--green);
+}
+.event-card.is-interested {
+  border-color: var(--green);
+  background: color-mix(in srgb, var(--mint) 45%, white);
+}
+.event-number.is-interested {
+  background: var(--mint);
+  color: var(--green);
+}
+.event-card.is-interested.is-selected .event-number {
+  background: var(--green);
+  color: var(--mint);
+}
+.event-interested-tag {
+  display: inline-block;
+  margin: 0.2rem 0 0.35rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--green);
+}
 
 .leaflet-control-attribution {
   font-size: 0.75rem;

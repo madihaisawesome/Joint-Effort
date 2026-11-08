@@ -10,7 +10,12 @@ const {
   queryPlaces,
   listCategories,
   listBuddies,
+  getBuddy,
   insertBuddy,
+  updateBuddy,
+  deleteBuddy,
+  adjustBuddyInterest,
+  seedBuddyInvites,
   placesToGeoJson,
 } = require("./db");
 const { syncCalgaryFacilities } = require("./syncCalgary");
@@ -77,6 +82,10 @@ const sessions = new Map();
 
 initDb();
 seedProgramPlaces();
+const buddySeed = seedBuddyInvites();
+if (buddySeed.added) {
+  console.log(`Seeded ${buddySeed.added} Calgary activity invites`);
+}
 
 app.use(express.json({ limit: "32kb" }));
 
@@ -615,11 +624,76 @@ app.post("/api/buddies", (req, res) => {
     note: cleaned.note,
     lat: latParsed.value,
     lng: lngParsed.value,
+    interestCount: 0,
     createdAt: new Date().toISOString(),
   };
 
   insertBuddy(post);
   res.status(201).json(post);
+});
+
+app.patch("/api/buddies/:id", (req, res) => {
+  const id = String(req.params.id || "").trim();
+  if (!id) return jsonError(res, 400, "Missing invite id");
+  if (!getBuddy(id)) return jsonError(res, 404, "Invite not found");
+
+  const cleaned = {};
+  for (const key of ["name", "activity", "area", "time", "note"]) {
+    if (req.body?.[key] === undefined) continue;
+    const result = cleanBuddyText(req.body[key], key);
+    if (!result.ok) return jsonError(res, 400, result.error);
+    cleaned[key] = result.value;
+  }
+
+  const hasLat = Object.prototype.hasOwnProperty.call(req.body || {}, "lat");
+  const hasLng = Object.prototype.hasOwnProperty.call(req.body || {}, "lng");
+  let lat = undefined;
+  let lng = undefined;
+
+  if (hasLat || hasLng) {
+    const latParsed = parseOptionalCoord(req.body.lat, "lat");
+    if (!latParsed.ok) return jsonError(res, 400, latParsed.error);
+    const lngParsed = parseOptionalCoord(req.body.lng, "lng");
+    if (!lngParsed.ok) return jsonError(res, 400, lngParsed.error);
+    if ((latParsed.value == null) !== (lngParsed.value == null)) {
+      return jsonError(res, 400, "lat and lng must both be provided together");
+    }
+    if (latParsed.value != null) {
+      if (latParsed.value < 50.7 || latParsed.value > 51.3) {
+        return jsonError(res, 400, "lat looks outside the Calgary area");
+      }
+      if (lngParsed.value < -114.4 || lngParsed.value > -113.7) {
+        return jsonError(res, 400, "lng looks outside the Calgary area");
+      }
+    }
+    lat = latParsed.value;
+    lng = lngParsed.value;
+  }
+
+  const updated = updateBuddy(id, {
+    ...cleaned,
+    ...(hasLat || hasLng ? { lat, lng } : {}),
+  });
+  res.json(updated);
+});
+
+app.delete("/api/buddies/:id", (req, res) => {
+  const id = String(req.params.id || "").trim();
+  if (!id) return jsonError(res, 400, "Missing invite id");
+  if (!deleteBuddy(id)) return jsonError(res, 404, "Invite not found");
+  res.status(204).end();
+});
+
+app.post("/api/buddies/:id/interest", (req, res) => {
+  const id = String(req.params.id || "").trim();
+  if (!id) return jsonError(res, 400, "Missing invite id");
+  if (!getBuddy(id)) return jsonError(res, 404, "Invite not found");
+  const action = String(req.body?.action || "join").toLowerCase();
+  if (action !== "join" && action !== "leave") {
+    return jsonError(res, 400, 'action must be "join" or "leave"');
+  }
+  const updated = adjustBuddyInterest(id, action === "leave" ? -1 : 1);
+  res.json(updated);
 });
 
 app.get("/api/map/places", (req, res) => {

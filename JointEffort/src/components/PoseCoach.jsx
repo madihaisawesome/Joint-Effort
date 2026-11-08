@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { Link } from "react-router-dom"
 import StickDemo from "./StickDemo.jsx"
 import { createSession, evaluateSession, skipSessionStep } from "../lib/api.js"
 import { prefetchSpeech, SPEECH_PRIORITY, speakText, stopSpeaking } from "../lib/speech.js"
@@ -877,6 +878,16 @@ export default function PoseCoach({ curriculumId = "" }) {
             </button>
           ) : null}
         </div>
+      ) : null}
+
+      {phase === "done" ? (
+        <aside className="pose-next-step" aria-label="Find a buddy nearby">
+          <h2>Done a routine?</h2>
+          <p>Find a buddy nearby — walks, park stretches, and gentle meetups on the Activity Board.</p>
+          <Link className="pill pill-dark" to="/activity">
+            Browse Activity Board
+          </Link>
+        </aside>
       ) : null}
     </div>
   )

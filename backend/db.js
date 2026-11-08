@@ -62,6 +62,11 @@ function initDb() {
       `ALTER TABLE buddies ADD COLUMN activity TEXT NOT NULL DEFAULT 'Gentle movement'`
     );
   }
+  if (!buddyCols.some((c) => c.name === "interest_count")) {
+    db.exec(
+      `ALTER TABLE buddies ADD COLUMN interest_count INTEGER NOT NULL DEFAULT 0`
+    );
+  }
 
   return db;
 }
@@ -191,18 +196,65 @@ function listCategories(sources) {
 function listBuddies() {
   return getDb()
     .prepare(
-      `SELECT id, name, activity, area, time, note, lat, lng, created_at AS createdAt
+      `SELECT id, name, activity, area, time, note, lat, lng,
+              interest_count AS interestCount, created_at AS createdAt
        FROM buddies
-       ORDER BY created_at DESC`
+       ORDER BY CASE WHEN id LIKE 'seed-%' THEN 0 ELSE 1 END,
+                created_at DESC`
     )
     .all();
+}
+
+function getBuddy(id) {
+  return (
+    getDb()
+      .prepare(
+        `SELECT id, name, activity, area, time, note, lat, lng,
+                interest_count AS interestCount, created_at AS createdAt
+         FROM buddies
+         WHERE id = ?`
+      )
+      .get(id) || null
+  );
+}
+
+function syncBuddyPlace(post) {
+  if (
+    typeof post.lat !== "number" ||
+    !Number.isFinite(post.lat) ||
+    typeof post.lng !== "number" ||
+    !Number.isFinite(post.lng)
+  ) {
+    return;
+  }
+  const activity = post.activity || "Gentle movement";
+  upsertPlace({
+    id: `buddy:${post.id}`,
+    source: "buddy",
+    name: `${activity} (${post.area})`,
+    category: "activity invite",
+    address: post.area,
+    lat: post.lat,
+    lng: post.lng,
+    phone: null,
+    website: null,
+    extras: {
+      activity,
+      time: post.time,
+      note: post.note,
+      buddyId: post.id,
+      host: post.name,
+      interestCount: post.interestCount || 0,
+    },
+    updated_at: post.createdAt || new Date().toISOString(),
+  });
 }
 
 function insertBuddy(post) {
   getDb()
     .prepare(
-      `INSERT INTO buddies (id, name, activity, area, time, note, lat, lng, created_at)
-       VALUES (@id, @name, @activity, @area, @time, @note, @lat, @lng, @createdAt)`
+      `INSERT INTO buddies (id, name, activity, area, time, note, lat, lng, interest_count, created_at)
+       VALUES (@id, @name, @activity, @area, @time, @note, @lat, @lng, @interestCount, @createdAt)`
     )
     .run({
       id: post.id,
@@ -213,35 +265,162 @@ function insertBuddy(post) {
       note: post.note,
       lat: post.lat ?? null,
       lng: post.lng ?? null,
+      interestCount: Number(post.interestCount) || 0,
       createdAt: post.createdAt,
     });
 
-  if (
-    typeof post.lat === "number" &&
-    Number.isFinite(post.lat) &&
-    typeof post.lng === "number" &&
-    Number.isFinite(post.lng)
-  ) {
-    const activity = post.activity || "Gentle movement";
-    upsertPlace({
-      id: `buddy:${post.id}`,
-      source: "buddy",
-      name: `${post.name} — ${activity}`,
-      category: "activity invite",
-      address: post.area,
-      lat: post.lat,
-      lng: post.lng,
-      phone: null,
-      website: null,
-      extras: {
-        activity,
-        time: post.time,
-        note: post.note,
-        buddyId: post.id,
-      },
-      updated_at: post.createdAt,
+  syncBuddyPlace({
+    ...post,
+    interestCount: Number(post.interestCount) || 0,
+  });
+}
+
+function adjustBuddyInterest(id, delta) {
+  const existing = getBuddy(id);
+  if (!existing) return null;
+  const step = Number(delta) || 0;
+  if (!step) return existing;
+  getDb()
+    .prepare(
+      `UPDATE buddies
+       SET interest_count = MAX(0, interest_count + ?)
+       WHERE id = ?`
+    )
+    .run(step, id);
+  const updated = getBuddy(id);
+  if (updated) syncBuddyPlace(updated);
+  return updated;
+}
+
+function incrementBuddyInterest(id) {
+  return adjustBuddyInterest(id, 1);
+}
+
+function removeBuddyPlace(id) {
+  getDb().prepare(`DELETE FROM places WHERE id = ?`).run(`buddy:${id}`);
+}
+
+function updateBuddy(id, fields) {
+  const existing = getBuddy(id);
+  if (!existing) return null;
+
+  const next = {
+    id,
+    name: fields.name ?? existing.name,
+    activity: fields.activity ?? existing.activity,
+    area: fields.area ?? existing.area,
+    time: fields.time ?? existing.time,
+    note: fields.note ?? existing.note,
+    lat: Object.prototype.hasOwnProperty.call(fields, "lat")
+      ? fields.lat
+      : existing.lat,
+    lng: Object.prototype.hasOwnProperty.call(fields, "lng")
+      ? fields.lng
+      : existing.lng,
+    interestCount: existing.interestCount,
+    createdAt: existing.createdAt,
+  };
+
+  getDb()
+    .prepare(
+      `UPDATE buddies
+       SET name = @name,
+           activity = @activity,
+           area = @area,
+           time = @time,
+           note = @note,
+           lat = @lat,
+           lng = @lng
+       WHERE id = @id`
+    )
+    .run({
+      id: next.id,
+      name: next.name,
+      activity: next.activity || "Gentle movement",
+      area: next.area,
+      time: next.time,
+      note: next.note,
+      lat: next.lat ?? null,
+      lng: next.lng ?? null,
     });
+
+  const updated = getBuddy(id);
+  if (!updated) return null;
+
+  const hasCoords =
+    typeof updated.lat === "number" &&
+    Number.isFinite(updated.lat) &&
+    typeof updated.lng === "number" &&
+    Number.isFinite(updated.lng);
+
+  if (hasCoords) {
+    syncBuddyPlace(updated);
+  } else {
+    removeBuddyPlace(id);
   }
+
+  return updated;
+}
+
+function deleteBuddy(id) {
+  const existing = getBuddy(id);
+  if (!existing) return false;
+  getDb().prepare(`DELETE FROM buddies WHERE id = ?`).run(id);
+  removeBuddyPlace(id);
+  return true;
+}
+
+const SEED_BUDDIES = [
+  {
+    id: "seed-nose-hill-walk",
+    name: "Priya",
+    activity: "Gentle Nose Hill walk",
+    area: "Nose Hill Park",
+    time: "Saturdays 10am",
+    note: "Easy pace near the paved paths by the parking lot. All ages welcome.",
+    lat: 51.1115,
+    lng: -114.1118,
+    interestCount: 4,
+    createdAt: "2026-11-01T16:00:00.000Z",
+  },
+  {
+    id: "seed-confederation-stretch",
+    name: "Marcus",
+    activity: "Park stretch circle",
+    area: "Confederation Park",
+    time: "Tuesdays 9:30am",
+    note: "Seated and standing stretches on the pathway. Bring a mat if you like.",
+    lat: 51.0732,
+    lng: -114.0875,
+    interestCount: 2,
+    createdAt: "2026-11-03T15:30:00.000Z",
+  },
+  {
+    id: "seed-campus-yoga",
+    name: "Aisha",
+    activity: "Campus gentle yoga",
+    area: "University of Calgary — outdoor quad",
+    time: "Thursdays 5pm",
+    note: "Beginner-friendly outdoor yoga. Free, no signup — just show up.",
+    lat: 51.0783,
+    lng: -114.1335,
+    interestCount: 6,
+    createdAt: "2026-11-05T22:00:00.000Z",
+  },
+];
+
+function seedBuddyInvites() {
+  const existing = getDb().prepare(`SELECT id FROM buddies WHERE id = ?`);
+  let added = 0;
+  for (const seed of SEED_BUDDIES) {
+    if (existing.get(seed.id)) {
+      syncBuddyPlace(seed);
+      continue;
+    }
+    insertBuddy(seed);
+    added += 1;
+  }
+  return { added, total: SEED_BUDDIES.length };
 }
 
 function safeParseJson(value) {
@@ -286,6 +465,12 @@ module.exports = {
   queryPlaces,
   listCategories,
   listBuddies,
+  getBuddy,
   insertBuddy,
+  updateBuddy,
+  deleteBuddy,
+  adjustBuddyInterest,
+  incrementBuddyInterest,
+  seedBuddyInvites,
   placesToGeoJson,
 };

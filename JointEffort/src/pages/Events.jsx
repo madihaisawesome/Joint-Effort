@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import EventMap from "../components/EventMap.jsx"
 import { events as demoEvents } from "../data/events.js"
 import { usePlace } from "../context/Place.jsx"
-import { getPrograms } from "../lib/api.js"
+import { getBuddies, getPrograms } from "../lib/api.js"
+import { useJoinedInvites } from "../lib/joinedInvites.js"
 import { addDays, formatWhen, todayISO } from "../lib/dates.js"
 import { formatKm, kmBetween, searchPlaces } from "../lib/geo.js"
 import { usePageTitle } from "../lib/title.js"
@@ -45,6 +46,39 @@ function programToEvent(program, index) {
   }
 }
 
+function interestLabel(count) {
+  const n = Number(count) || 0
+  if (n <= 0) return "Open invite"
+  if (n === 1) return "1 person interested"
+  return `${n} people interested`
+}
+
+function buddyToEvent(post, index) {
+  const count = Number(post.interestCount) || 0
+  return {
+    id: `invite-${post.id}`,
+    buddyId: post.id,
+    name: post.activity || "Gentle meetup",
+    place: post.area || "Calgary",
+    area: "Activity invite",
+    lat: post.lat,
+    lng: post.lng,
+    date: todayISO(),
+    start: "10:00",
+    end: "11:00",
+    kind: "activity",
+    image: programPhotos[index % programPhotos.length],
+    summary: `${post.time || "Flexible timing"} · Hosted by ${post.name || "a neighbour"}`,
+    summaryLong: post.note || "",
+    access: interestLabel(count),
+    accessTags: [],
+    source: "buddy",
+    link: "/activity",
+    whenLabel: post.time || "See Activity Board",
+    interestCount: count,
+  }
+}
+
 export default function Events() {
   const navigate = useNavigate()
   const { place, choose, save, saved, status, setStatus } = usePlace()
@@ -61,7 +95,9 @@ export default function Events() {
   const [openId, setOpenId] = useState("")
   const [announce, setAnnounce] = useState("")
   const [liveEvents, setLiveEvents] = useState([])
+  const [inviteEvents, setInviteEvents] = useState([])
   const [backendNote, setBackendNote] = useState("")
+  const joinedInvites = useJoinedInvites()
   usePageTitle("Community events")
 
   useEffect(() => {
@@ -84,22 +120,62 @@ export default function Events() {
     }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const data = await getBuddies()
+        if (cancelled) return
+        const mapped = (data.posts || [])
+          .filter(
+            (post) =>
+              typeof post.lat === "number" &&
+              Number.isFinite(post.lat) &&
+              typeof post.lng === "number" &&
+              Number.isFinite(post.lng),
+          )
+          .map(buddyToEvent)
+        setInviteEvents(mapped)
+      } catch {
+        if (cancelled) return
+        setInviteEvents([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const catalog = useMemo(() => {
-    const ids = new Set(liveEvents.map((event) => event.id))
-    return [...liveEvents, ...demoEvents.filter((event) => !ids.has(event.id))]
-  }, [liveEvents])
+    const joined = new Set(joinedInvites)
+    const withInterest = inviteEvents.map((event) => ({
+      ...event,
+      youInterested: joined.has(event.buddyId),
+    }))
+    const ids = new Set([...liveEvents, ...withInterest].map((event) => event.id))
+    return [
+      ...withInterest,
+      ...liveEvents,
+      ...demoEvents.filter((event) => !ids.has(event.id)),
+    ]
+  }, [inviteEvents, joinedInvites, liveEvents])
 
   const filtered = useMemo(() => {
     const today = todayISO()
     const limit = when === "any" ? null : addDays(today, when === "7" ? 6 : 29)
+    const evergreen = (event) => event.source === "program" || event.source === "buddy"
     const rows = catalog
       .map((event) => ({ ...event, distance: kmBetween(place, event) }))
       .filter((event) => event.distance <= Number(radius))
-      .filter((event) => (event.source === "program" ? true : limit ? event.date >= today && event.date <= limit : true))
+      .filter((event) => (evergreen(event) ? true : limit ? event.date >= today && event.date <= limit : true))
       .filter((event) => (kind === "all" ? true : event.kind === kind))
       .filter((event) => (access === "any" ? true : event.accessTags.includes(access)))
     rows.sort((a, b) => {
       if (sort === "close") return a.distance - b.distance
+      if (a.youInterested && !b.youInterested) return -1
+      if (b.youInterested && !a.youInterested) return 1
+      if (a.source === "buddy" && b.source !== "buddy") return -1
+      if (b.source === "buddy" && a.source !== "buddy") return 1
       if (a.source === "program" && b.source !== "program") return -1
       if (b.source === "program" && a.source !== "program") return 1
       return `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`)
@@ -218,6 +294,7 @@ export default function Events() {
           <span className="visually-hidden">Activity</span>
           <select value={kind} onChange={(event) => setKind(event.target.value)}>
             <option value="all">All activities</option>
+            <option value="activity">Activity invites</option>
             <option value="park">Parks</option>
             <option value="recreation">Recreation centres</option>
           </select>
@@ -291,7 +368,15 @@ export default function Events() {
                 const open = openId === event.id
                 return (
                   <li key={event.id}>
-                    <article className={selected ? "event-card is-selected" : "event-card"}>
+                    <article
+                      className={[
+                        "event-card",
+                        selected ? "is-selected" : "",
+                        event.youInterested ? "is-interested" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                    >
                       <button
                         id={`event-${event.id}`}
                         className="event-hit"
@@ -301,13 +386,18 @@ export default function Events() {
                       >
                         <span className="event-photo">
                           <img src={event.image} alt="" />
-                          <span className="event-number">{index + 1}</span>
+                          <span className={`event-number${event.youInterested ? " is-interested" : ""}`}>
+                            {index + 1}
+                          </span>
                         </span>
                         <span className="event-copy">
                           <span className="event-name">{event.name}</span>
+                          {event.youInterested ? (
+                            <span className="event-interested-tag">You're interested</span>
+                          ) : null}
                           <span className="event-meta">
                             <img src={iconCalendar} alt="" width="21" height="21" />
-                            {formatWhen(event.date, event.start, event.end)}
+                            {event.whenLabel || formatWhen(event.date, event.start, event.end)}
                           </span>
                           <span className="event-meta event-place">
                             <img src={iconPin} alt="" width="21" height="21" />
@@ -340,7 +430,14 @@ export default function Events() {
                         <p className="more-detail">{event.summaryLong}</p>
                         {event.access ? <p>{event.access}</p> : null}
                         <p>{event.area}</p>
-                        {event.link ? (
+                        {event.source === "buddy" ? (
+                          <p>
+                            <Link className="text-link" to="/activity">
+                              Open on Activity Board
+                            </Link>
+                          </p>
+                        ) : null}
+                        {event.link && event.source !== "buddy" ? (
                           <p>
                             <a href={event.link} target="_blank" rel="noopener noreferrer">
                               Open program website
@@ -361,7 +458,7 @@ export default function Events() {
         </div>
         <div className="map-column">
           <p className="map-caption">
-            Street map of the events near {place.label}. The list has the same events.
+            Street map near {place.label} — mint pins are invites you marked interested.
           </p>
           <EventMap
             center={place}

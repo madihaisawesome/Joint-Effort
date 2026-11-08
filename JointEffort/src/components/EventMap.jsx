@@ -5,10 +5,13 @@ import iconMinus from "../assets/icon-minus.svg"
 import iconLocate from "../assets/icon-locate.svg"
 import { formatWhen } from "../lib/dates.js"
 
-function pinIcon(number, selected) {
+function pinIcon(number, selected, interested) {
+  const classes = ["je-pin"]
+  if (interested) classes.push("is-interested")
+  if (selected) classes.push("is-selected")
   return L.divIcon({
     className: "je-marker",
-    html: `<span class="je-pin${selected ? " is-selected" : ""}">${number}</span>`,
+    html: `<span class="${classes.join(" ")}">${number}</span>`,
     iconSize: [52, 52],
     iconAnchor: [26, 26],
   })
@@ -49,16 +52,20 @@ export default function EventMap({ center, events, selectedId, onSelect }) {
     markersRef.current.forEach((marker) => marker.remove())
     markersRef.current.clear()
     events.forEach((event, index) => {
+      const interested = Boolean(event.youInterested)
+      const label = interested
+        ? `${event.name}, pin ${index + 1}, you're interested`
+        : `${event.name}, pin ${index + 1}`
       const marker = L.marker([event.lat, event.lng], {
-        icon: pinIcon(index + 1, event.id === selectedId),
+        icon: pinIcon(index + 1, event.id === selectedId, interested),
         keyboard: true,
-        title: `${event.name}, pin ${index + 1}`,
+        title: label,
       })
       marker.on("click", () => onSelectRef.current(event.id, "map"))
       marker.on("add", () => {
         const element = marker.getElement()
         if (!element) return
-        element.setAttribute("aria-label", `${event.name}, pin ${index + 1}`)
+        element.setAttribute("aria-label", label)
       })
       marker.addTo(map)
       markersRef.current.set(event.id, marker)
@@ -99,13 +106,22 @@ export default function EventMap({ center, events, selectedId, onSelect }) {
         <article className="map-preview">
           <img src={selected.image} alt="" width="112" height="104" />
           <div>
-            <p className="map-kicker">Event {selectedIndex + 1}</p>
+            <p className="map-kicker">
+              {selected.source === "buddy"
+                ? selected.youInterested
+                  ? "Your interest"
+                  : "Activity invite"
+                : `Event ${selectedIndex + 1}`}
+            </p>
             <p className="map-title">{selected.name}</p>
-            <p>{formatWhen(selected.date, selected.start, selected.end)}</p>
+            <p>
+              {selected.whenLabel || formatWhen(selected.date, selected.start, selected.end)}
+            </p>
+            {selected.youInterested ? <p className="map-interested">You're interested</p> : null}
             {selected.access ? <p>{selected.access}</p> : null}
           </div>
           <button type="button" className="pill pill-dark" onClick={() => onSelect(selected.id, "map")}>
-            View event
+            {selected.source === "buddy" ? "View invite" : "View event"}
           </button>
         </article>
       ) : null}
