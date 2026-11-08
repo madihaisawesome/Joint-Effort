@@ -4,9 +4,6 @@
  */
 
 const DEFAULT_VOICE = "Aoede"; // breezy, natural
-const STYLE =
-  "Warm, calm, and encouraging. Speak clearly and gently for older adults. Natural pacing, not robotic.";
-
 const MODELS = [
   "gemini-3.8-flash-lite-tts",
   "gemini-3.8-flash-tts",
@@ -167,14 +164,11 @@ async function postJson(url, body) {
 async function synthesizeGenerateContent(model, text, voice) {
   const key = apiKey();
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+  // TTS models recite the text field verbatim — never put stage directions here.
   const payload = await postJson(url, {
     contents: [
       {
-        parts: [
-          {
-            text: `Speak this verbatim in a warm, calm, encouraging coach voice for older adults. Do not add extra words:\n\n${text}`,
-          },
-        ],
+        parts: [{ text }],
       },
     ],
     generationConfig: {
@@ -201,9 +195,9 @@ async function synthesizeInteractions(model, text, voice) {
         type: "user_input",
         content: [
           {
+            // Transcript only — style belongs in speech_config/voice, not spoken text.
             type: "text",
             text,
-            annotations: [{ type: "speech_metadata", style: STYLE }],
           },
         ],
       },
@@ -234,16 +228,28 @@ async function synthesizeWithModel(model, text, voice) {
  * @param {{ text: string, voice?: string }} input
  * @returns {Promise<{ audio: string, mimeType: string, voice: string, model: string, cached: boolean } | null>}
  */
+function spokenOnly(text) {
+  // Only strip the old TTS stage-direction prefix — never rewrite coaching copy.
+  return String(text || "")
+    .replace(
+      /^\s*Speak this verbatim in a warm, calm, encouraging coach voice for older adults\.?\s*Do not add extra words:?\s*/i,
+      ""
+    )
+    .trim();
+}
+
 async function synthesize({ text, voice } = {}) {
   if (!isConfigured()) return null;
-  const cleaned = String(text || "").trim();
+  let cleaned = String(text || "").trim();
+  cleaned = spokenOnly(cleaned) || cleaned;
   if (!cleaned) return null;
   if (cleaned.length > 1200) {
     throw new Error("Text too long for speech");
   }
 
   const chosenVoice = normalizeVoice(voice);
-  const cacheKey = `${chosenVoice}::${cleaned}`;
+  // Bump key prefix if prompt/style handling changes so old bad audio is not reused.
+  const cacheKey = `v2::${chosenVoice}::${cleaned}`;
   const hit = cache.get(cacheKey);
   if (hit) {
     return { ...hit, cached: true };

@@ -131,6 +131,34 @@ function resetTransientHold(exercise, state) {
   }
 }
 
+function remainingLine(reps, needReps) {
+  const left = Math.max(0, needReps - reps);
+  if (left <= 0) return "Good. That finishes this step.";
+  if (left === 1) return "Good. One more.";
+  return `Good. ${left} more.`;
+}
+
+function armRaiseVoiceCue(left, right, target, tol) {
+  const leftOk = within(left, target, tol);
+  const rightOk = within(right, target, tol);
+  if (leftOk && rightOk) return "Good height. Hold.";
+
+  const leftLow = typeof left === "number" && left < target - tol;
+  const rightLow = typeof right === "number" && right < target - tol;
+  const leftHigh = typeof left === "number" && left > target + tol;
+  const rightHigh = typeof right === "number" && right > target + tol;
+
+  if (leftLow && rightLow) return "Too low. Lift higher.";
+  if (leftHigh && rightHigh) return "Too high. Lower a bit.";
+  if (leftLow && rightOk) return "Left arm too low.";
+  if (rightLow && leftOk) return "Right arm too low.";
+  if (leftHigh && rightOk) return "Left arm too high.";
+  if (rightHigh && leftOk) return "Right arm too high.";
+  if (leftLow || rightLow) return "Too low. Lift higher.";
+  if (leftHigh || rightHigh) return "Too high. Lower a bit.";
+  return "Raise both arms to shoulder height.";
+}
+
 function armRaiseFeedback(left, right, target, tol) {
   const leftHint = sideHint(left, target, tol, "left");
   const rightHint = sideHint(right, target, tol, "right");
@@ -144,7 +172,7 @@ function armRaiseFeedback(left, right, target, tol) {
       left < target - tol &&
       right < target - tol
     ) {
-      return "Both arms are low — lift them out to shoulder height";
+      return "Both arms are too low — lift them to shoulder height";
     }
     if (
       typeof left === "number" &&
@@ -152,7 +180,7 @@ function armRaiseFeedback(left, right, target, tol) {
       left > target + tol &&
       right > target + tol
     ) {
-      return "Both arms are high — lower them to shoulder height";
+      return "Both arms are too high — lower them to shoulder height";
     }
     const parts = [leftHint, rightHint].filter(Boolean);
     if (parts.length) {
@@ -196,10 +224,12 @@ function evaluateArmRaise(step, metrics, state, nowMs) {
   if (state.phase === "seek_raise") {
     if (!inRange) {
       state.inRangeSince = null;
+      const form = armRaiseFeedback(left, right, target, tol);
       return {
         passed: false,
         inRange: false,
-        feedback: `Rep ${state.reps + 1}/${needReps}: ${armRaiseFeedback(left, right, target, tol)}`,
+        feedback: `Rep ${state.reps + 1}/${needReps}: ${form}`,
+        voiceCue: armRaiseVoiceCue(left, right, target, tol),
         progress: {
           reps: state.reps,
           targetReps: needReps,
@@ -224,6 +254,7 @@ function evaluateArmRaise(step, metrics, state, nowMs) {
         heldSeconds >= minHold
           ? `Rep ${state.reps + 1}/${needReps}: now lower your arms`
           : `Rep ${state.reps + 1}/${needReps}: good height — hold briefly`,
+      voiceCue: heldSeconds >= minHold ? "Now lower your arms." : "Good height. Hold.",
       progress: {
         reps: state.reps,
         targetReps: needReps,
@@ -247,6 +278,7 @@ function evaluateArmRaise(step, metrics, state, nowMs) {
       feedback: passed
         ? `Arm raise complete — ${needReps} reps done`
         : `Nice — ${state.reps}/${needReps} reps. Raise again`,
+      voiceCue: remainingLine(state.reps, needReps),
       progress: {
         reps: state.reps,
         targetReps: needReps,
@@ -262,6 +294,7 @@ function evaluateArmRaise(step, metrics, state, nowMs) {
       passed: false,
       inRange: true,
       feedback: `Rep ${state.reps + 1}/${needReps}: lower both arms to finish the rep`,
+      voiceCue: "Lower your arms to finish the rep.",
       progress: {
         reps: state.reps,
         targetReps: needReps,
@@ -276,6 +309,7 @@ function evaluateArmRaise(step, metrics, state, nowMs) {
     passed: false,
     inRange: false,
     feedback: `Rep ${state.reps + 1}/${needReps}: keep lowering until arms are down`,
+    voiceCue: "Keep lowering. Arms still a bit high.",
     progress: {
       reps: state.reps,
       targetReps: needReps,
@@ -321,6 +355,18 @@ function sitToStandFeedback(phase, knee, seatedMax, standingMin, reps, needReps)
   }
 
   return "Follow the sit-to-stand movement at your own pace";
+}
+
+function sitToStandVoiceCue(phase, knee, seatedMax, standingMin) {
+  if (phase === "seek_seated" || phase === "seek_sit") {
+    if (typeof knee === "number" && knee > seatedMax) return "Too high. Bend lower.";
+    return "Good. Now stand up.";
+  }
+  if (phase === "seek_stand") {
+    if (typeof knee === "number" && knee < standingMin) return "Too low. Stand taller.";
+    return "Nice. Stand all the way up.";
+  }
+  return "Keep going.";
 }
 
 function evaluateSitToStand(step, metrics, state) {
@@ -396,6 +442,7 @@ function evaluateSitToStand(step, metrics, state) {
 
   const seated = knee <= seatedMax || kneeDropped || hipSat;
   const standing = knee >= standingMin || kneeRisen || hipStood;
+  let repJustCompleted = false;
 
   // Count on standing up (sit → stand = 1 rep), then require a sit before the next.
   if (state.phase === "seek_seated" && seated) {
@@ -409,6 +456,7 @@ function evaluateSitToStand(step, metrics, state) {
   } else if (state.phase === "seek_stand" && standing) {
     state.reps += 1;
     state.phase = "seek_sit";
+    repJustCompleted = true;
     state.trough = knee;
     state.peak = knee;
     if (typeof hipY === "number") {
@@ -441,6 +489,11 @@ function evaluateSitToStand(step, metrics, state) {
     passed,
     inRange: seated || standing,
     feedback,
+    voiceCue: repJustCompleted
+      ? remainingLine(state.reps, needReps)
+      : passed
+        ? remainingLine(state.reps, needReps)
+        : sitToStandVoiceCue(state.phase, knee, seatedMax, standingMin),
     progress: {
       reps: state.reps,
       targetReps: needReps,
@@ -495,10 +548,16 @@ function evaluateBalanceHold(step, metrics, state, nowMs) {
   if (!leftHip || !rightHip || !levelOk) {
     state.inRangeSince = null;
     state.hipOrigin = null;
+    const tip = balanceFeedback(leftHip, rightHip, level, levelTol, 0, 0, maxMove);
     return {
       passed: false,
       inRange: false,
-      feedback: `Hold ${state.reps + 1}/${needReps}: ${balanceFeedback(leftHip, rightHip, level, levelTol, 0, 0, maxMove)}`,
+      feedback: `Hold ${state.reps + 1}/${needReps}: ${tip}`,
+      voiceCue: /left hip/i.test(tip)
+        ? "Left hip dropping. Level up."
+        : /right hip/i.test(tip)
+          ? "Right hip dropping. Level up."
+          : "Level your hips.",
       progress: {
         reps: state.reps,
         targetReps: needReps,
@@ -539,6 +598,7 @@ function evaluateBalanceHold(step, metrics, state, nowMs) {
         rightMove,
         maxMove
       )}`,
+      voiceCue: "You're swaying. Steady yourself.",
       progress: {
         reps: state.reps,
         targetReps: needReps,
@@ -565,6 +625,7 @@ function evaluateBalanceHold(step, metrics, state, nowMs) {
       feedback: passed
         ? `Balance complete — ${needReps} steady holds done`
         : `Hold ${state.reps}/${needReps} done — settle and hold still again`,
+      voiceCue: remainingLine(state.reps, needReps),
       progress: {
         reps: state.reps,
         targetReps: needReps,
@@ -581,6 +642,7 @@ function evaluateBalanceHold(step, metrics, state, nowMs) {
     passed: false,
     inRange: true,
     feedback: `Hold ${state.reps + 1}/${needReps}: stay still ${heldSeconds.toFixed(1)}s / ${holdSeconds}s`,
+    voiceCue: `Hold still. ${Math.max(0, holdSeconds - heldSeconds).toFixed(0)} seconds.`,
     progress: {
       reps: state.reps,
       targetReps: needReps,

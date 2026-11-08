@@ -32,6 +32,18 @@ let geminiAvailable = null
 let geminiVoiceName = "Aoede"
 let currentAudio = null
 let speakGeneration = 0
+/** Higher priority speech (instructions) should not be stolen by live form cues. */
+let activePriority = 0
+const audioCache = new Map()
+const AUDIO_CACHE_LIMIT = 40
+
+export const SPEECH_PRIORITY = {
+  form: 1,
+  rep: 2,
+  practiceStart: 3,
+  instruction: 5,
+  summary: 5,
+}
 
 function scoreVoice(voice) {
   const label = `${voice.name} ${voice.lang}`
@@ -95,6 +107,7 @@ export function ensureVoices() {
 
 export function stopSpeaking() {
   speakGeneration += 1
+  activePriority = 0
   window.speechSynthesis?.cancel()
   if (currentAudio) {
     currentAudio.onended = null
@@ -102,6 +115,34 @@ export function stopSpeaking() {
     currentAudio.pause()
     currentAudio.src = ""
     currentAudio = null
+  }
+}
+
+function rememberAudio(key, result) {
+  if (!key || !result?.audio) return
+  audioCache.set(key, result)
+  if (audioCache.size > AUDIO_CACHE_LIMIT) {
+    const oldest = audioCache.keys().next().value
+    audioCache.delete(oldest)
+  }
+}
+
+/** Prefetch short coaching lines so live cues keep the same Gemini voice without long waits. */
+export async function prefetchSpeech(lines = []) {
+  const probe = await probeGeminiVoice()
+  if (!probe.available) return
+  for (const line of lines) {
+    const cleaned = String(line || "").trim()
+    if (!cleaned || audioCache.has(cleaned)) continue
+    try {
+      const result = await synthesizeSpeech(cleaned)
+      if (result?.audio) {
+        if (result.voice) geminiVoiceName = result.voice
+        rememberAudio(cleaned, result)
+      }
+    } catch {
+      // Prefetch is best-effort.
+    }
   }
 }
 
@@ -220,18 +261,44 @@ function speakBrowser(text, options = {}, generation) {
 
 /**
  * Speak text with Gemini AI voice when available, else browser TTS.
+ * Always prefer Gemini so demo instructions and live cues share one voice.
  * @param {string} text
- * @param {{ rate?: number, pitch?: number, onend?: () => void, onerror?: (event: { error?: string }) => void }} [options]
+ * @param {{ rate?: number, pitch?: number, priority?: number, onend?: () => void, onerror?: (event: { error?: string }) => void }} [options]
  */
 export async function speakText(text, options = {}) {
   const cleaned = String(text || "").trim()
   if (!cleaned) return null
 
+  const priority = options.priority ?? SPEECH_PRIORITY.form
+  // Don't let a low-priority form cue cancel instructions mid-flight / mid-play.
+  if (priority < activePriority) return null
+
   const generation = ++speakGeneration
+  activePriority = priority
   window.speechSynthesis?.cancel()
   if (currentAudio) {
     currentAudio.pause()
     currentAudio = null
+  }
+
+  const clearPriority = () => {
+    if (generation === speakGeneration) activePriority = 0
+  }
+  const wrapped = {
+    ...options,
+    onend: () => {
+      clearPriority()
+      options.onend?.()
+    },
+    onerror: (event) => {
+      clearPriority()
+      options.onerror?.(event)
+    },
+  }
+
+  const cached = audioCache.get(cleaned)
+  if (cached?.audio && generation === speakGeneration) {
+    return playAudioBase64(cached.audio, cached.mimeType, wrapped, generation)
   }
 
   const probe = await probeGeminiVoice()
@@ -242,7 +309,8 @@ export async function speakText(text, options = {}) {
       if (result?.audio) {
         if (result.voice) geminiVoiceName = result.voice
         geminiAvailable = true
-        return playAudioBase64(result.audio, result.mimeType, options, generation)
+        rememberAudio(cleaned, result)
+        return playAudioBase64(result.audio, result.mimeType, wrapped, generation)
       }
     } catch (error) {
       console.warn("Gemini TTS failed, using browser voice:", error.message || error)
@@ -251,7 +319,7 @@ export async function speakText(text, options = {}) {
   }
 
   if (generation !== speakGeneration) return null
-  return speakBrowser(cleaned, options, generation)
+  return speakBrowser(cleaned, wrapped, generation)
 }
 
 export function getActiveVoiceLabel() {

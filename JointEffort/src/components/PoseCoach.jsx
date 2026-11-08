@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import StickDemo from "./StickDemo.jsx"
 import { createSession, evaluateSession, skipSessionStep } from "../lib/api.js"
-import { speakText, stopSpeaking } from "../lib/speech.js"
+import { prefetchSpeech, SPEECH_PRIORITY, speakText, stopSpeaking } from "../lib/speech.js"
 
 const VISION_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm"
 const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
@@ -124,12 +124,56 @@ function progressLabel(progress) {
   return ""
 }
 
-function speakCoach(text) {
+function speakCoach(text, options = {}) {
   try {
-    void speakText(text, { rate: 0.95, pitch: 1.06 })
+    void speakText(text, {
+      rate: 0.95,
+      pitch: 1.06,
+      priority: options.priority ?? SPEECH_PRIORITY.form,
+    })
   } catch {
     // Speech is optional — coaching still works without it.
   }
+}
+
+const LIVE_CUE_PREFETCH = [
+  "Too low. Lift higher.",
+  "Too high. Lower a bit.",
+  "Left arm too low.",
+  "Right arm too low.",
+  "Left arm too high.",
+  "Right arm too high.",
+  "Good height. Hold.",
+  "Now lower your arms.",
+  "Lower your arms to finish the rep.",
+  "Keep lowering. Arms still a bit high.",
+  "Too high. Bend lower.",
+  "Too low. Stand taller.",
+  "Good. Now stand up.",
+  "Nice. Stand all the way up.",
+  "Good. One more.",
+  "Good. 2 more.",
+  "Good. 3 more.",
+  "Good. 4 more.",
+  "Good. 5 more.",
+  "Good. 6 more.",
+  "Good. 7 more.",
+  "Good. That finishes this step.",
+  "Level your hips.",
+  "You're swaying. Steady yourself.",
+]
+
+function practiceVoiceFromEvaluation(evaluation) {
+  if (evaluation?.voiceCue) return String(evaluation.voiceCue).trim()
+  const reps = evaluation?.progress?.reps
+  const target = evaluation?.progress?.targetReps
+  if (typeof reps === "number" && typeof target === "number" && reps > 0) {
+    const left = Math.max(0, target - reps)
+    if (left <= 0) return "Good. That finishes this step."
+    if (left === 1) return "Good. One more."
+    return `Good. ${left} more.`
+  }
+  return ""
 }
 
 export default function PoseCoach({ curriculumId = "" }) {
@@ -181,6 +225,9 @@ export default function PoseCoach({ curriculumId = "" }) {
     coach.lastStepId = step.id
     coach.lastSpokenFeedback = ""
     coach.lastSpokenReps = -1
+    coach.lastFormSpeakAt = 0
+    coach.demoSpeakToken = (coach.demoSpeakToken || 0) + 1
+    const speakToken = coach.demoSpeakToken
     setPhase("demo")
     setExerciseType(step.exercise || "arm_raise")
     setStepLabel(`Step ${index} · demo`)
@@ -190,9 +237,16 @@ export default function PoseCoach({ curriculumId = "" }) {
     setGuidance("Watch the stick figure, then press I’m ready when you want to try.")
     setAiTip(false)
     setCanSkip(Boolean(coach.sessionId))
-    speakCoach(
-      `${step.title}. ${step.instruction} Watch the stick figure demo, then press I’m ready when you want to try.`,
-    )
+    // Stop live cues, then speak the new step instructions with high priority
+    // so they are not cancelled by a leftover form/rep line.
+    stopSpeaking()
+    const line = `${step.title}. ${step.instruction} Watch the stick figure demo, then press I’m ready when you want to try.`
+    window.setTimeout(() => {
+      if (coach.phase !== "demo") return
+      if (coach.lastStepId !== step.id) return
+      if (coach.demoSpeakToken !== speakToken) return
+      speakCoach(line, { priority: SPEECH_PRIORITY.instruction })
+    }, 180)
   }
 
   function applyPayload(data) {
@@ -212,7 +266,8 @@ export default function PoseCoach({ curriculumId = "" }) {
       setAiTip(Boolean(data.evaluation?.aiEnhanced || data.summary))
       setProgressText("")
       setCanSkip(false)
-      speakCoach(summary)
+      stopSpeaking()
+      speakCoach(summary, { priority: SPEECH_PRIORITY.summary })
       return
     }
 
@@ -241,18 +296,33 @@ export default function PoseCoach({ curriculumId = "" }) {
       setAiTip(Boolean(evaluation.aiEnhanced))
     }
     setProgressText(progressLabel(evaluation.progress))
+    if (coach.phase !== "practice") return
+    if (/step back|center yourself|can.?t see/i.test(evaluation.feedback || "")) return
+
     const reps = evaluation.progress?.reps
-    if (
-      coach.phase === "practice" &&
-      typeof reps === "number" &&
-      reps !== coach.lastSpokenReps &&
-      evaluation.feedback &&
-      !/step back/i.test(evaluation.feedback)
-    ) {
+    const now = Date.now()
+    const voiceLine = practiceVoiceFromEvaluation(evaluation)
+
+    // Celebrate each completed rep right away: "Good. 4 more."
+    if (typeof reps === "number" && reps > coach.lastSpokenReps) {
       coach.lastSpokenReps = reps
-      coach.lastSpokenFeedback = evaluation.feedback
-      speakCoach(evaluation.feedback)
+      coach.lastSpokenFeedback = voiceLine || evaluation.feedback || ""
+      coach.lastFormSpeakAt = now
+      // If this finished the step, enterDemo will speak next — skip the cheer.
+      if (evaluation.passed) return
+      speakCoach(voiceLine || evaluation.feedback, { priority: SPEECH_PRIORITY.rep })
+      return
     }
+
+    // Live form cues (too high / too low) — throttled so it does not chatter.
+    if (!voiceLine) return
+    const isRepCheer = /^good\./i.test(voiceLine)
+    if (isRepCheer) return
+    if (voiceLine === coach.lastSpokenFeedback) return
+    if (now - (coach.lastFormSpeakAt || 0) < 3200) return
+    coach.lastSpokenFeedback = voiceLine
+    coach.lastFormSpeakAt = now
+    speakCoach(voiceLine, { priority: SPEECH_PRIORITY.form })
   }
 
   useEffect(() => {
@@ -281,6 +351,8 @@ export default function PoseCoach({ curriculumId = "" }) {
       lastStepId: "",
       lastSpokenFeedback: "",
       lastSpokenReps: -1,
+      lastFormSpeakAt: 0,
+      demoSpeakToken: 0,
       smoothed: {
         leftShoulder: null,
         rightShoulder: null,
@@ -366,12 +438,16 @@ export default function PoseCoach({ curriculumId = "" }) {
       coach.phase = "practice"
       coach.lastSpokenFeedback = ""
       coach.lastSpokenReps = -1
+      coach.lastFormSpeakAt = 0
       setPhase("practice")
       setStepLabel(`Your turn · ${coach.nextStep.exercise}`)
       setGuidance("I’m watching. Match the demo at your own pace.")
       setAiTip(false)
       setProgressText("")
-      speakCoach(`Your turn. ${coach.nextStep.title}. I’m watching now.`)
+      speakCoach(`Your turn. ${coach.nextStep.title}. I’m watching now.`, {
+        priority: SPEECH_PRIORITY.practiceStart,
+      })
+      void prefetchSpeech(LIVE_CUE_PREFETCH)
       if (!running && landmarker) startCamera()
     }
 
