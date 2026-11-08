@@ -40,7 +40,13 @@ App: http://localhost:5173
 5. Finish the step → next exercise instructions should speak automatically
 6. Optional: **Events** map / **Activity** board for the community angle
 
-## What Gemini is used for
+## AI usage (MLH disclosure)
+
+**Full disclosure:** [AI_USAGE.md](./AI_USAGE.md)
+
+**In the product:** Google Gemini for short coaching tips, natural TTS voice, and optional session summary. Camera video stays in the browser (MediaPipe). The API only receives numbers and text.
+
+**While building:** Cursor (AI coding assistant) helped write/edit code and docs. The product design, pose rules, curriculum, a11y, and community features are original team work — not a reskin of ChatGPT or another AI app.
 
 | Feature | What is sent | What you hear / see |
 |---------|----------------|---------------------|

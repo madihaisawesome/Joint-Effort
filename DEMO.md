@@ -22,5 +22,6 @@
 ## Talking points
 
 - Video never leaves the device
-- Gemini for TTS + coaching text only
-- Built for calm, accessible guidance — not a clinic product
+- Gemini for TTS + coaching text only — original pose rules + curriculum are ours
+- Built with Cursor as a coding assistant; full MLH disclosure in `AI_USAGE.md`
+- Built for calm, accessible guidance — not a clinic product / not a ChatGPT reskin
