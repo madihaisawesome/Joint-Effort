@@ -8,16 +8,14 @@ export default function About() {
       <div className="about-copy">
         <h1>About JointEffort</h1>
         <p>
-          JointEffort is a place to plan your own workout and find community events near the
-          University of Calgary. An account is only for your personal calendar, your saved map
-          location, and starting the camera.
+          JointEffort is a place where you can utilize the power of AI to help you with your
+          exercises and find community events near you!
         </p>
         <p className="more-detail">
           The calendar and the saved location stay in this browser. They do not follow you to
           another computer. Community events are a fixed demo list around campus. You can browse
           them. You cannot post, edit, or RSVP.
         </p>
-        <p>Stop if something hurts. This is not medical advice.</p>
       </div>
       <img
         className="about-photo"

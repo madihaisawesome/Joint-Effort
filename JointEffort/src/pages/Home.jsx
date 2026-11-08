@@ -26,8 +26,8 @@ export default function Home() {
         <div className="hero-row">
           <div className="hero-copy">
             <h1>
-              <span>A camera coach,</span>
-              <span>and campus events</span>
+              <span>A camera coach</span>
+              <span>and community events near you</span>
             </h1>
             <div className="hero-actions">
               <Link className="pill pill-hero" to={cameraPath}>
