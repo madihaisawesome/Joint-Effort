@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
+import ActivityBoard from "../components/ActivityBoard.jsx"
 import EventMap from "../components/EventMap.jsx"
-import { events } from "../data/events.js"
+import { events as demoEvents } from "../data/events.js"
 import { usePlace } from "../context/Place.jsx"
+import { getPrograms } from "../lib/api.js"
 import { addDays, formatWhen, todayISO } from "../lib/dates.js"
 import { formatKm, kmBetween, searchPlaces } from "../lib/geo.js"
 import { usePageTitle } from "../lib/title.js"
@@ -14,6 +16,35 @@ import iconAccess from "../assets/icon-access.svg"
 import iconPin from "../assets/icon-pin.svg"
 import iconArrowLight from "../assets/icon-arrow-light.svg"
 import iconArrowDark from "../assets/icon-arrow-dark.svg"
+import photoWalk from "../assets/event-1.png"
+import photoPaint from "../assets/event-2.png"
+import photoGather from "../assets/event-3.png"
+
+const programPhotos = [photoWalk, photoPaint, photoGather]
+
+function programToEvent(program, index) {
+  return {
+    id: program.id,
+    name: program.name,
+    place: program.address || "Calgary",
+    area: program.type || "Verified program",
+    lat: program.lat,
+    lng: program.lng,
+    date: todayISO(),
+    start: "09:00",
+    end: "17:00",
+    kind: "recreation",
+    image: programPhotos[index % programPhotos.length],
+    summary: program.hours || "Verified Calgary program listing.",
+    summaryLong: [program.hours, program.phone ? `Phone ${program.phone}` : "", program.link || ""]
+      .filter(Boolean)
+      .join(" "),
+    access: program.link ? `Website: ${program.link}` : "",
+    accessTags: [],
+    source: "program",
+    link: program.link || "",
+  }
+}
 
 export default function Events() {
   const navigate = useNavigate()
@@ -30,23 +61,52 @@ export default function Events() {
   const [sort, setSort] = useState("soon")
   const [openId, setOpenId] = useState("")
   const [announce, setAnnounce] = useState("")
+  const [liveEvents, setLiveEvents] = useState([])
+  const [backendNote, setBackendNote] = useState("")
   usePageTitle("Community events")
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const data = await getPrograms()
+        if (cancelled) return
+        const mapped = (data.programs || []).map(programToEvent)
+        setLiveEvents(mapped)
+        setBackendNote(mapped.length ? `${mapped.length} verified programs from the Joint Effort API.` : "")
+      } catch (error) {
+        if (cancelled) return
+        setLiveEvents([])
+        setBackendNote(`Programs API offline — showing demo events only. ${error.message || ""}`)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const catalog = useMemo(() => {
+    const ids = new Set(liveEvents.map((event) => event.id))
+    return [...liveEvents, ...demoEvents.filter((event) => !ids.has(event.id))]
+  }, [liveEvents])
 
   const filtered = useMemo(() => {
     const today = todayISO()
     const limit = when === "any" ? null : addDays(today, when === "7" ? 6 : 29)
-    const rows = events
+    const rows = catalog
       .map((event) => ({ ...event, distance: kmBetween(place, event) }))
       .filter((event) => event.distance <= Number(radius))
-      .filter((event) => (limit ? event.date >= today && event.date <= limit : true))
+      .filter((event) => (event.source === "program" ? true : limit ? event.date >= today && event.date <= limit : true))
       .filter((event) => (kind === "all" ? true : event.kind === kind))
       .filter((event) => (access === "any" ? true : event.accessTags.includes(access)))
     rows.sort((a, b) => {
       if (sort === "close") return a.distance - b.distance
+      if (a.source === "program" && b.source !== "program") return -1
+      if (b.source === "program" && a.source !== "program") return 1
       return `${a.date}${a.start}`.localeCompare(`${b.date}${b.start}`)
     })
     return rows
-  }, [access, kind, place, radius, sort, when])
+  }, [access, catalog, kind, place, radius, sort, when])
 
   const requested = params.get("event")
   const selectedId = filtered.some((event) => event.id === requested)
@@ -124,6 +184,7 @@ export default function Events() {
       <p className="visually-hidden" aria-live="polite">
         {status}
       </p>
+      {backendNote ? <p className="form-note">{backendNote}</p> : null}
       <form className="filters" onSubmit={onSearch}>
         <div className="field location-field">
           <img src={iconSearch} alt="" width="24" height="24" />
@@ -280,6 +341,13 @@ export default function Events() {
                         <p className="more-detail">{event.summaryLong}</p>
                         {event.access ? <p>{event.access}</p> : null}
                         <p>{event.area}</p>
+                        {event.link ? (
+                          <p>
+                            <a href={event.link} target="_blank" rel="noopener noreferrer">
+                              Open program website
+                            </a>
+                          </p>
+                        ) : null}
                       </div>
                     </article>
                   </li>
@@ -304,6 +372,7 @@ export default function Events() {
           />
         </div>
       </div>
+      <ActivityBoard />
     </section>
   )
 }

@@ -59,6 +59,22 @@ seedProgramPlaces();
 
 app.use(express.json({ limit: "32kb" }));
 
+// Allow the Vite frontend (and same-origin Express static) to call the API.
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (
+    !origin ||
+    origin === "http://localhost:5173" ||
+    origin === "http://127.0.0.1:5173"
+  ) {
+    res.setHeader("Access-Control-Allow-Origin", origin || "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  }
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
+
 // Reject anything that looks like media payloads (defense in depth; pose stays on-device).
 app.use((req, res, next) => {
   const body = req.body;
@@ -125,12 +141,13 @@ function feedbackKey(evaluation) {
 function shouldAskGemini(session, evaluation) {
   if (!geminiConfigured()) return false;
   if (!evaluation) return false;
+  // Never block the live loop on framing / visibility tips.
+  if (/step back/i.test(evaluation.feedback || "")) return false;
   if (evaluation.passed) return true;
-  // Skip noisy "step back" spam unless it just flipped
   const key = feedbackKey(evaluation);
   const now = Date.now();
   if (key !== session.lastGeminiFeedbackKey) {
-    if (now - (session.lastGeminiAt || 0) >= 1500) return true;
+    if (now - (session.lastGeminiAt || 0) >= GEMINI_THROTTLE_MS) return true;
   }
   if (now - (session.lastGeminiAt || 0) >= GEMINI_THROTTLE_MS) return true;
   return false;
@@ -142,9 +159,11 @@ async function enrichWithGemini(session, step, evaluation, metrics) {
     return evaluation;
   }
 
-  const tip = await coachTip({ step, evaluation, metrics });
+  // Stamp before awaiting so a slow/failed tip does not retrigger every frame.
   session.lastGeminiAt = Date.now();
   session.lastGeminiFeedbackKey = feedbackKey(evaluation);
+
+  const tip = await coachTip({ step, evaluation, metrics });
   if (tip.aiEnhanced && tip.text) {
     evaluation.feedback = tip.text;
     evaluation.aiEnhanced = true;
@@ -268,6 +287,10 @@ app.post("/api/sessions/:id/progress", (req, res) => {
   }
 
   const expected = getStep(session.currentStep);
+  // Idempotent skip: if this step was already completed, just return current state.
+  if (session.completed.includes(stepId)) {
+    return res.json(sessionPayload(session));
+  }
   if (!expected || expected.id !== stepId) {
     return jsonError(
       res,

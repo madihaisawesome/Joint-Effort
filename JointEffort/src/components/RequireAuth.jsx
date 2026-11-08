@@ -1,9 +1,12 @@
 import { Navigate, useLocation } from "react-router-dom"
-import { useAuth } from "../context/Auth.jsx"
+import { authConfigured, useAuth } from "../context/Auth.jsx"
 
 export default function RequireAuth({ reason, children }) {
   const { isAuthenticated, isLoading } = useAuth()
   const location = useLocation()
+
+  // Without Auth0 env vars, keep demo routes open so the backend coach still works.
+  if (!authConfigured) return children
 
   if (isLoading) {
     return (

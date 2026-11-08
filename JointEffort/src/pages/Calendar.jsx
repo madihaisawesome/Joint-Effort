@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { events } from "../data/events.js"
-import { exercises, getExercise } from "../data/exercises.js"
+import { useCurriculum } from "../context/Curriculum.jsx"
 import { usePlace } from "../context/Place.jsx"
 import { useWorkouts } from "../context/Workouts.jsx"
 import {
@@ -37,6 +37,7 @@ function countLabel(items) {
 }
 
 export default function Calendar() {
+  const { exercises, getExercise } = useCurriculum()
   const { place } = usePlace()
   const { workouts, saveWorkout, markDone, removeWorkout } = useWorkouts()
   const [params, setParams] = useSearchParams()

@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from "react"
+import { createSession, evaluateSession, skipSessionStep } from "../lib/api.js"
 
 const VISION_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm"
 const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
 const MODEL_URL = "/models/pose_landmarker_lite.task"
+const EVALUATE_EVERY_MS = 120
+const ANGLE_SMOOTH = 0.28
 
 const LM = {
   LEFT_SHOULDER: 11,
   RIGHT_SHOULDER: 12,
+  LEFT_ELBOW: 13,
+  RIGHT_ELBOW: 14,
   LEFT_HIP: 23,
   RIGHT_HIP: 24,
   LEFT_KNEE: 25,
@@ -82,15 +87,91 @@ function bodyIsVisible(landmarks) {
   return !(maxY - minY > 0.92 || clipped)
 }
 
+function progressLabel(progress) {
+  if (!progress) return ""
+  if (typeof progress.reps === "number") {
+    let text = `Reps ${progress.reps} / ${progress.targetReps}`
+    if (typeof progress.heldSeconds === "number" && typeof progress.holdSeconds === "number" && progress.holdSeconds > 0) {
+      text += ` · hold ${progress.heldSeconds.toFixed(1)}s / ${progress.holdSeconds}s`
+    }
+    return text
+  }
+  if (typeof progress.heldSeconds === "number" && typeof progress.holdSeconds === "number") {
+    return `Hold ${progress.heldSeconds.toFixed(1)}s / ${progress.holdSeconds}s`
+  }
+  return ""
+}
+
 export default function PoseCoach() {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const sessionRef = useRef(null)
-  const [status, setStatus] = useState("The pose model is loading.")
+  const coachRef = useRef({
+    sessionId: null,
+    nextStep: null,
+    done: false,
+    evaluateInFlight: false,
+    lastEvaluateAt: 0,
+    skipping: false,
+    epoch: 0,
+    smoothed: {
+      leftShoulder: null,
+      rightShoulder: null,
+      leftKnee: null,
+      rightKnee: null,
+      leftHip: null,
+      rightHip: null,
+    },
+  })
+
+  const [status, setStatus] = useState("Connecting to the coaching server…")
   const [guidance, setGuidance] = useState("")
+  const [aiTip, setAiTip] = useState(false)
+  const [progressText, setProgressText] = useState("")
+  const [stepLabel, setStepLabel] = useState("Starting…")
+  const [stepTitle, setStepTitle] = useState("")
+  const [stepInstruction, setStepInstruction] = useState("")
   const [angles, setAngles] = useState(BLANK)
   const [modelReady, setModelReady] = useState(false)
   const [cameraOn, setCameraOn] = useState(false)
+  const [canSkip, setCanSkip] = useState(false)
+
+  function applyPayload(data) {
+    const coach = coachRef.current
+    coach.sessionId = data.session?.sessionId || coach.sessionId
+    coach.nextStep = data.nextStep || null
+    coach.done = Boolean(data.done) || !data.nextStep
+
+    if (coach.done) {
+      const summary = data.summary || data.evaluation?.feedback || "Routine complete"
+      setStepLabel("All done")
+      setStepTitle("Routine complete")
+      setStepInstruction("Nice work — you finished every step in this session.")
+      setGuidance(summary)
+      setAiTip(Boolean(data.evaluation?.aiEnhanced || data.summary))
+      setProgressText("")
+      setCanSkip(false)
+      return
+    }
+
+    const step = data.nextStep
+    const index = (data.session?.currentStep ?? 0) + 1
+    setStepLabel(`Step ${index} · ${step.exercise}`)
+    setStepTitle(step.title)
+    setStepInstruction(step.instruction)
+    setCanSkip(Boolean(coach.sessionId))
+
+    const evaluation = data.evaluation
+    if (!evaluation) {
+      setProgressText("")
+      return
+    }
+    if (evaluation.feedback) {
+      setGuidance(evaluation.feedback)
+      setAiTip(Boolean(evaluation.aiEnhanced))
+    }
+    setProgressText(progressLabel(evaluation.progress))
+  }
 
   useEffect(() => {
     const video = videoRef.current
@@ -105,6 +186,25 @@ export default function PoseCoach() {
     let drawPoints = null
     let shownAngles = BLANK
     const smooth = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : 0.62
+    // Fresh coach state each mount (React StrictMode remounts in dev).
+    const coach = {
+      sessionId: null,
+      nextStep: null,
+      done: false,
+      evaluateInFlight: false,
+      lastEvaluateAt: 0,
+      skipping: false,
+      epoch: 0,
+      smoothed: {
+        leftShoulder: null,
+        rightShoulder: null,
+        leftKnee: null,
+        rightKnee: null,
+        leftHip: null,
+        rightHip: null,
+      },
+    }
+    coachRef.current = coach
 
     function publishAngles(next) {
       if (
@@ -117,6 +217,61 @@ export default function PoseCoach() {
       }
       shownAngles = next
       setAngles(next)
+    }
+
+    function resetSmoothing() {
+      for (const key of Object.keys(coach.smoothed)) coach.smoothed[key] = null
+    }
+
+    function smoothAngle(key, value) {
+      if (value == null || Number.isNaN(value)) return coach.smoothed[key]
+      if (coach.smoothed[key] == null) coach.smoothed[key] = value
+      else coach.smoothed[key] = coach.smoothed[key] * (1 - ANGLE_SMOOTH) + value * ANGLE_SMOOTH
+      return coach.smoothed[key]
+    }
+
+    function smoothPoint(key, point) {
+      if (!point) return coach.smoothed[key]
+      if (!coach.smoothed[key]) coach.smoothed[key] = { x: point.x, y: point.y }
+      else {
+        coach.smoothed[key] = {
+          x: coach.smoothed[key].x * (1 - ANGLE_SMOOTH) + point.x * ANGLE_SMOOTH,
+          y: coach.smoothed[key].y * (1 - ANGLE_SMOOTH) + point.y * ANGLE_SMOOTH,
+        }
+      }
+      return coach.smoothed[key]
+    }
+
+    async function sendMetrics(metrics) {
+      if (!coach.sessionId || !coach.nextStep || coach.done || coach.evaluateInFlight || coach.skipping) return
+      const now = performance.now()
+      if (now - coach.lastEvaluateAt < EVALUATE_EVERY_MS) return
+      coach.lastEvaluateAt = now
+      coach.evaluateInFlight = true
+      const stepId = coach.nextStep.id
+      const epoch = coach.epoch
+      try {
+        const data = await evaluateSession(coach.sessionId, {
+          stepId,
+          timestamp: Date.now(),
+          metrics,
+        })
+        // Ignore stale evaluates that finished after a skip/remount.
+        if (!cancelled && coach.sessionId && !coach.skipping && epoch === coach.epoch) {
+          applyPayload(data)
+        }
+      } catch (error) {
+        // Timeouts / mismatch after skip / network blips should not stop the camera loop.
+        if (
+          !cancelled &&
+          error?.message &&
+          !/timed out|abort|does not match current step/i.test(error.message)
+        ) {
+          console.error(error)
+        }
+      } finally {
+        coach.evaluateInFlight = false
+      }
     }
 
     function resizeCanvas() {
@@ -248,24 +403,55 @@ export default function PoseCoach() {
         const landmarks = result.landmarks?.[0]
         if (!landmarks) {
           drawPoints = null
+          resetSmoothing()
           publishAngles(BLANK)
-          setGuidance("")
           setStatus("The camera is on. Looking for a pose.")
+          sendMetrics({ usable: false })
         } else {
           drawSkeleton(smoothPoints(landmarks))
           if (!bodyIsVisible(landmarks)) {
+            resetSmoothing()
             setGuidance("Step back so your whole body is in the frame.")
+            setAiTip(false)
             publishAngles(STEP_BACK)
             setStatus("The camera is on. Step back so your whole body is in the frame.")
+            setProgressText("")
+            sendMetrics({ usable: false })
           } else {
-            setGuidance("")
+            const leftShoulder = smoothAngle(
+              "leftShoulder",
+              angleAt(landmarks[LM.LEFT_HIP], landmarks[LM.LEFT_SHOULDER], landmarks[LM.LEFT_ELBOW]),
+            )
+            const rightShoulder = smoothAngle(
+              "rightShoulder",
+              angleAt(landmarks[LM.RIGHT_HIP], landmarks[LM.RIGHT_SHOULDER], landmarks[LM.RIGHT_ELBOW]),
+            )
+            const leftKnee = smoothAngle(
+              "leftKnee",
+              angleAt(landmarks[LM.LEFT_HIP], landmarks[LM.LEFT_KNEE], landmarks[LM.LEFT_ANKLE]),
+            )
+            const rightKnee = smoothAngle(
+              "rightKnee",
+              angleAt(landmarks[LM.RIGHT_HIP], landmarks[LM.RIGHT_KNEE], landmarks[LM.RIGHT_ANKLE]),
+            )
+            const leftHip = smoothPoint("leftHip", landmarks[LM.LEFT_HIP])
+            const rightHip = smoothPoint("rightHip", landmarks[LM.RIGHT_HIP])
             publishAngles({
-              leftShoulder: formatAngle(angleAt(landmarks[LM.LEFT_HIP], landmarks[LM.LEFT_SHOULDER], landmarks[13])),
-              rightShoulder: formatAngle(angleAt(landmarks[LM.RIGHT_HIP], landmarks[LM.RIGHT_SHOULDER], landmarks[14])),
-              leftKnee: formatAngle(angleAt(landmarks[LM.LEFT_HIP], landmarks[LM.LEFT_KNEE], landmarks[LM.LEFT_ANKLE])),
-              rightKnee: formatAngle(angleAt(landmarks[LM.RIGHT_HIP], landmarks[LM.RIGHT_KNEE], landmarks[LM.RIGHT_ANKLE])),
+              leftShoulder: formatAngle(leftShoulder),
+              rightShoulder: formatAngle(rightShoulder),
+              leftKnee: formatAngle(leftKnee),
+              rightKnee: formatAngle(rightKnee),
             })
             setStatus("The camera is on. A pose is in view.")
+            sendMetrics({
+              usable: true,
+              leftShoulderAngle: leftShoulder,
+              rightShoulderAngle: rightShoulder,
+              leftKneeAngle: leftKnee,
+              rightKneeAngle: rightKnee,
+              leftHip,
+              rightHip,
+            })
           }
         }
       }
@@ -283,8 +469,8 @@ export default function PoseCoach() {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
       if (cancelled) return
       publishAngles(BLANK)
-      setGuidance("")
       setCameraOn(false)
+      setCanSkip(false)
       setStatus(message)
     }
 
@@ -309,6 +495,7 @@ export default function PoseCoach() {
         running = true
         lastVideoTime = -1
         setCameraOn(true)
+        setCanSkip(Boolean(coach.sessionId) && !coach.done)
         setStatus("The camera is on. Looking for a pose.")
         frame = requestAnimationFrame(predictFrame)
       } catch (error) {
@@ -316,7 +503,37 @@ export default function PoseCoach() {
       }
     }
 
-    sessionRef.current = { startCamera, stopCamera }
+    async function skipStep() {
+      if (!coach.sessionId || !coach.nextStep || coach.done || coach.skipping) return
+      const stepId = coach.nextStep.id
+      const skippedTitle = coach.nextStep.title
+      coach.skipping = true
+      coach.epoch += 1
+      const epoch = coach.epoch
+      setCanSkip(false)
+      setProgressText("")
+      setGuidance(`Skipping ${skippedTitle}…`)
+      setAiTip(false)
+      try {
+        const data = await skipSessionStep(coach.sessionId, stepId)
+        resetSmoothing()
+        if (!cancelled && epoch === coach.epoch) {
+          applyPayload(data)
+          if (!coach.done && data.nextStep) {
+            setGuidance(`Skipped ${skippedTitle}. Next: ${data.nextStep.title}.`)
+            setAiTip(false)
+            setProgressText("")
+          }
+        }
+      } catch (error) {
+        if (!cancelled) setGuidance(error.message || "Skip failed")
+      } finally {
+        coach.skipping = false
+        if (!cancelled && !coach.done) setCanSkip(Boolean(coach.sessionId))
+      }
+    }
+
+    sessionRef.current = { startCamera, stopCamera, skipStep }
 
     async function createLandmarker(PoseLandmarker, FilesetResolver, delegate) {
       const vision = await FilesetResolver.forVisionTasks(WASM_URL)
@@ -328,6 +545,23 @@ export default function PoseCoach() {
     }
 
     async function init() {
+      // Let React StrictMode finish its first mount/cleanup before touching the camera.
+      await new Promise((resolve) => setTimeout(resolve, 75))
+      if (cancelled) return
+
+      try {
+        const payload = await createSession()
+        if (cancelled) return
+        applyPayload(payload)
+        setStatus("Session ready. Loading the pose model…")
+      } catch (error) {
+        if (!cancelled) {
+          setStatus(`Could not reach the coaching server. ${error.message || "Start the backend on port 3000."}`)
+          setGuidance("Open a terminal in backend/ and run npm start, then refresh this page.")
+        }
+        return
+      }
+
       try {
         const vision = await import(/* @vite-ignore */ VISION_URL)
         if (cancelled) return
@@ -345,7 +579,14 @@ export default function PoseCoach() {
         setStatus("The pose model is ready. The camera is starting.")
         await startCamera()
       } catch (error) {
-        if (!cancelled) setStatus(`The pose model did not load. ${error.message || "Try again."}`)
+        if (!cancelled) {
+          const message = error?.message || "Try again."
+          if (/NotReadableError|Device in use|Could not start video/i.test(message)) {
+            setStatus("Camera is busy in another tab. Close other camera pages, then press Start camera.")
+          } else {
+            setStatus(`The pose model did not load. ${message}`)
+          }
+        }
       }
     }
 
@@ -362,8 +603,21 @@ export default function PoseCoach() {
 
   return (
     <div className="pose-coach" data-skip-speech>
-      <p className="pose-status" role="status">{status}</p>
-      {guidance ? <p className="pose-guidance">{guidance}</p> : null}
+      <div className="pose-step-card">
+        <p className="pose-step-label">{stepLabel}</p>
+        <h2>{stepTitle}</h2>
+        <p>{stepInstruction}</p>
+        {progressText ? <p className="pose-progress">{progressText}</p> : null}
+      </div>
+      <p className="pose-status" role="status">
+        {status}
+      </p>
+      {guidance ? (
+        <p className={`pose-guidance${aiTip ? " has-ai" : ""}`}>
+          {aiTip ? <span className="pose-ai-badge">Gemini tip</span> : null}
+          {guidance}
+        </p>
+      ) : null}
       <div className="pose-layout">
         <div className="pose-stage">
           <video ref={videoRef} playsInline autoPlay muted />
@@ -389,10 +643,10 @@ export default function PoseCoach() {
               <dd>{angles.rightKnee}</dd>
             </div>
           </dl>
-          <p>Angles update as you move. Step back replaces a number when the camera cannot see you clearly.</p>
+          <p>Angles stay on this device. Only numbers go to the coaching server.</p>
         </aside>
       </div>
-      <div className="button-row">
+      <div className="button-row pose-actions">
         <button
           className="pill pill-dark"
           type="button"
@@ -400,6 +654,9 @@ export default function PoseCoach() {
           onClick={() => (cameraOn ? sessionRef.current?.stopCamera() : sessionRef.current?.startCamera())}
         >
           {cameraOn ? "Stop camera" : "Start camera"}
+        </button>
+        <button className="pill" type="button" disabled={!canSkip} onClick={() => sessionRef.current?.skipStep()}>
+          Skip step
         </button>
       </div>
     </div>

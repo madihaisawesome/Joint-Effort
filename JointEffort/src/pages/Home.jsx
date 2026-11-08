@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom"
 import { useAuth } from "../context/Auth.jsx"
+import { useCurriculum } from "../context/Curriculum.jsx"
 import hero from "../assets/hero.png"
 import portrait1 from "../assets/portrait-1.png"
 import portrait2 from "../assets/portrait-2.png"
@@ -11,6 +12,11 @@ import { usePageTitle } from "../lib/title.js"
 
 export default function Home() {
   const { isAuthenticated } = useAuth()
+  const { exercises } = useCurriculum()
+  const primaryExercise = exercises[0]
+  const cameraPath = primaryExercise
+    ? `/exercises/${encodeURIComponent(primaryExercise.id)}`
+    : "/exercises"
   usePageTitle("JointEffort")
 
   return (
@@ -25,21 +31,19 @@ export default function Home() {
               <span>and campus events</span>
             </h1>
             <div className="hero-actions">
-              {isAuthenticated ? (
-                <Link className="pill pill-hero" to="/calendar">
-                  Open calendar
-                  <img src={arrow} alt="" width="34" height="34" />
-                </Link>
-              ) : (
-                <Link className="pill pill-hero" to="/login">
-                  Register now
-                  <img src={arrow} alt="" width="34" height="34" />
-                </Link>
-              )}
+              <Link className="pill pill-hero" to={cameraPath}>
+                Open camera coach
+                <img src={arrow} alt="" width="34" height="34" />
+              </Link>
               <Link className="text-link" to="/events">
                 <img src={phone} alt="" width="35" height="35" />
                 See events
               </Link>
+              {isAuthenticated ? (
+                <Link className="text-link" to="/calendar">
+                  Open calendar
+                </Link>
+              ) : null}
             </div>
           </div>
           <div className="trust">
@@ -65,11 +69,19 @@ export default function Home() {
       <section className="more-detail page-narrow">
         <h2>What you can do here</h2>
         <p>
-          JointEffort helps you plan a workout, open a camera session, and find community events
-          near the University of Calgary. The camera coach is added by a partner. This site does
-          not count repetitions, score form, or save video.
+          JointEffort helps you plan a workout, open the on-device camera coach, and find community
+          events near the University of Calgary. The coach counts gentle reps and can offer tips —
+          video stays on this device and is not saved.
         </p>
         <p>Stop if something hurts. This is not medical advice.</p>
+        <div className="button-row">
+          <Link className="pill pill-dark" to="/exercises">
+            Browse exercises
+          </Link>
+          <Link className="pill" to="/events">
+            Community events &amp; invites
+          </Link>
+        </div>
       </section>
     </>
   )

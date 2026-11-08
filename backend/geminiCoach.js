@@ -17,7 +17,17 @@ function isConfigured() {
   return Boolean(process.env.GEMINI_API_KEY && String(process.env.GEMINI_API_KEY).trim());
 }
 
-async function generateText(prompt) {
+function withTimeout(promise, ms, label) {
+  let timer;
+  return Promise.race([
+    promise.finally(() => clearTimeout(timer)),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label || "Gemini"} timeout`)), ms);
+    }),
+  ]);
+}
+
+async function generateText(prompt, timeoutMs = 2500) {
   const client = getClient();
   if (!client) return null;
 
@@ -30,7 +40,11 @@ async function generateText(prompt) {
     },
   });
 
-  const result = await model.generateContent(prompt);
+  const result = await withTimeout(
+    model.generateContent(prompt),
+    timeoutMs,
+    "Gemini"
+  );
   try {
     const text = result?.response?.text?.()?.trim();
     return text || null;
@@ -79,7 +93,8 @@ Metrics: ${JSON.stringify(safeMetrics(metrics))}
 Reply with coaching text only.`;
 
   try {
-    const text = await generateText(prompt);
+    // Keep evaluate path snappy — tips are optional enrichment.
+    const text = await generateText(prompt, 2500);
     if (!text) return { text: fallback, aiEnhanced: false };
     return { text: text.replace(/^["']|["']$/g, "").trim(), aiEnhanced: true };
   } catch (err) {
@@ -104,7 +119,7 @@ Notes: ${(notes || []).slice(-3).join(" | ")}
 Reply with summary text only.`;
 
   try {
-    const text = await generateText(prompt);
+    const text = await generateText(prompt, 5000);
     if (!text) return { text: fallback, aiEnhanced: false };
     return { text: text.replace(/^["']|["']$/g, "").trim(), aiEnhanced: true };
   } catch (err) {

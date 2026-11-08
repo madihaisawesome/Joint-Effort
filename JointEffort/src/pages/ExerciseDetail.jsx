@@ -1,14 +1,24 @@
 import { Link, useParams, useSearchParams } from "react-router-dom"
-import { getExercise } from "../data/exercises.js"
-import { useAuth } from "../context/Auth.jsx"
+import { authConfigured, useAuth } from "../context/Auth.jsx"
+import { useCurriculum } from "../context/Curriculum.jsx"
 import { usePageTitle } from "../lib/title.js"
 
 export default function ExerciseDetail() {
   const { id } = useParams()
   const [params] = useSearchParams()
   const { isAuthenticated } = useAuth()
+  const { getExercise, status } = useCurriculum()
   const exercise = getExercise(id)
   usePageTitle(exercise?.name || "Exercise")
+
+  if (status === "loading") {
+    return (
+      <section className="page-narrow">
+        <h1>Loading exercise</h1>
+        <p>Fetching the coaching routine from the server…</p>
+      </section>
+    )
+  }
 
   if (!exercise) {
     return (
@@ -25,23 +35,35 @@ export default function ExerciseDetail() {
     ? `/calendar?done=1&workout=${encodeURIComponent(workout)}`
     : `/exercises/${exercise.id}`
   const aiPath = `/ai?exercise=${encodeURIComponent(exercise.id)}&returnTo=${encodeURIComponent(back)}`
-  const cameraHref = isAuthenticated
-    ? aiPath
-    : `/login?returnTo=${encodeURIComponent(aiPath)}&reason=camera`
+  const cameraHref =
+    !authConfigured || isAuthenticated
+      ? aiPath
+      : `/login?returnTo=${encodeURIComponent(aiPath)}&reason=camera`
 
   return (
     <article className="page-narrow">
       <h1>{exercise.name}</h1>
       <p>{exercise.summary}</p>
       <p className="more-detail">{exercise.summaryLong}</p>
+      {exercise.steps?.length ? (
+        <>
+          <h2>In this routine</h2>
+          <ol className="exercise-steps">
+            {exercise.steps.map((step) => (
+              <li key={step.id}>
+                <strong>{step.title}</strong> — {step.instruction}
+              </li>
+            ))}
+          </ol>
+        </>
+      ) : null}
       <h2>Set the camera</h2>
       <p>{exercise.setup}</p>
       <p className="more-detail">{exercise.setupLong}</p>
       <p>{exercise.safety}</p>
       <p>
-        The next page will ask for the camera. This site does not save video. You will see a
-        skeleton and shoulder and knee angles. If the camera cannot see you clearly, it says to
-        step back.
+        The next page asks for the camera. Video stays on this device. The coaching server only
+        receives joint angles so it can count reps and offer tips.
       </p>
       <div className="button-row">
         <Link className="pill pill-dark" to={cameraHref}>

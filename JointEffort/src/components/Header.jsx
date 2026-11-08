@@ -8,6 +8,7 @@ import logoDetail from "../assets/logo-detail.svg"
 const loggedOut = [
   { to: "/", label: "Home", end: true },
   { to: "/about", label: "About" },
+  { to: "/exercises", label: "Exercises" },
   { to: "/events", label: "Community Events" },
 ]
 

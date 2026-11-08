@@ -458,6 +458,29 @@ html[data-contrast="high"] .hero h1 { color: #ffffff; }
   margin: 0 0 1rem;
 }
 .camera-page p { font-size: 1.25rem; margin: 0 0 1rem; max-width: 65ch; }
+.pose-step-card {
+  border: 2px solid var(--green);
+  border-radius: 1.1rem;
+  background: var(--panel);
+  padding: 1.1rem 1.25rem;
+  margin: 0 0 1rem;
+}
+.pose-step-card h2 {
+  font-family: var(--serif);
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  margin: 0.15rem 0 0.5rem;
+}
+.pose-step-card p { margin: 0; max-width: 65ch; }
+.pose-step-label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.pose-progress {
+  margin-top: 0.65rem !important;
+  font-weight: 700;
+}
 .pose-status { font-weight: 700; }
 .pose-guidance {
   padding: 0.75rem 1rem;
@@ -465,6 +488,69 @@ html[data-contrast="high"] .hero h1 { color: #ffffff; }
   border-radius: 0.75rem;
   background: var(--mint);
   font-weight: 700;
+}
+.pose-guidance.has-ai { padding-top: 0.55rem; }
+.pose-ai-badge {
+  display: inline-block;
+  margin: 0 0.55rem 0.35rem 0;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: var(--green);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+.pose-actions { position: sticky; bottom: 0.75rem; z-index: 2; }
+.exercise-steps {
+  margin: 0.75rem 0 1.25rem;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.55rem;
+}
+.activity-board {
+  width: min(72rem, calc(100% - 3rem));
+  margin: 2rem auto 4rem;
+}
+.activity-board > p { max-width: 65ch; font-size: 1.15rem; }
+.activity-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem 1rem;
+  margin: 1rem 0;
+}
+.activity-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 700;
+}
+.activity-form .span-2 { grid-column: 1 / -1; }
+.activity-form input {
+  width: 100%;
+  min-height: 2.75rem;
+  border: 2px solid var(--line);
+  border-radius: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  font: inherit;
+  background: var(--panel);
+}
+.activity-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.activity-list li {
+  border: 2px solid var(--line);
+  border-radius: 1rem;
+  padding: 0.9rem 1rem;
+  background: var(--panel);
+  display: grid;
+  gap: 0.25rem;
+}
+@media (max-width: 720px) {
+  .activity-form { grid-template-columns: 1fr; }
 }
 .pose-layout {
   display: grid;
