@@ -28,21 +28,32 @@ export function getExercise(id) {
   return exercises.find((exercise) => exercise.id === id) || null
 }
 
+function routineToExercise(routine) {
+  const steps = Array.isArray(routine.steps) ? routine.steps : []
+  const stepNames = steps.map((step) => step.title).join(", ")
+  return {
+    id: routine.id,
+    name: routine.title || "Gentle routine",
+    summary:
+      routine.summary ||
+      `A ${steps.length}-step gentle routine coached on this device with live form tips.`,
+    summaryLong: `Steps: ${stepNames || "camera session"}. Video stays in the browser and is not saved. The server only receives joint angles — never video.`,
+    setup: SETUP,
+    setupLong: SETUP_LONG,
+    safety: SAFETY,
+    steps,
+  }
+}
+
+/** Accepts either `{ routines: [...] }` or a legacy single curriculum object. */
 export function curriculumToExercises(curriculum) {
-  if (!curriculum?.id || !Array.isArray(curriculum.steps)) return fallbackExercises.slice()
-  const stepNames = curriculum.steps.map((step) => step.title).join(", ")
-  return [
-    {
-      id: curriculum.id,
-      name: curriculum.title || "Gentle routine",
-      summary: `A ${curriculum.steps.length}-step gentle routine coached on this device with live form tips.`,
-      summaryLong: `Steps: ${stepNames}. Video stays in the browser and is not saved. The server only receives joint angles — never video.`,
-      setup: SETUP,
-      setupLong: SETUP_LONG,
-      safety: SAFETY,
-      steps: curriculum.steps,
-    },
-  ]
+  if (Array.isArray(curriculum?.routines) && curriculum.routines.length) {
+    return curriculum.routines.map(routineToExercise)
+  }
+  if (curriculum?.id && Array.isArray(curriculum.steps)) {
+    return [routineToExercise(curriculum)]
+  }
+  return fallbackExercises.slice()
 }
 
 export function setExercises(next) {

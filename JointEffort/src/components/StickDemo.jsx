@@ -180,7 +180,7 @@ function Limb({ a, b }) {
   return <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} />
 }
 
-export default function StickDemo({ exercise, reducedMotion = false }) {
+export default function StickDemo({ exercise, reducedMotion = false, compact = false }) {
   const kind = ["arm_raise", "sit_to_stand", "balance_hold"].includes(exercise)
     ? exercise
     : "arm_raise"
@@ -236,8 +236,15 @@ export default function StickDemo({ exercise, reducedMotion = false }) {
   ]
 
   return (
-    <figure className={`stick-demo is-${kind}${reducedMotion ? " is-still" : ""}`}>
-      <svg viewBox="0 0 200 240" role="img" aria-label={`Stick figure demo: ${kind.replace(/_/g, " ")}`}>
+    <figure
+      className={`stick-demo is-${kind}${reducedMotion ? " is-still" : ""}${compact ? " is-compact" : ""}`}
+      aria-hidden={compact ? true : undefined}
+    >
+      <svg
+        viewBox="0 0 200 240"
+        role={compact ? "presentation" : "img"}
+        aria-label={compact ? undefined : `Stick figure demo: ${kind.replace(/_/g, " ")}`}
+      >
         {pose.chair ? (
           <g className="stick-chair">
             <rect x="128" y="148" width="40" height="10" rx="2" />
@@ -265,7 +272,7 @@ export default function StickDemo({ exercise, reducedMotion = false }) {
           </>
         )}
       </svg>
-      {caption ? <p className="stick-caption">{caption}</p> : null}
+      {!compact && caption ? <p className="stick-caption">{caption}</p> : null}
     </figure>
   )
 }

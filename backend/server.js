@@ -32,12 +32,27 @@ const DATA_DIR = path.join(__dirname, "data");
 const MAX_BUDDY_FIELD = 200;
 const GEMINI_THROTTLE_MS = 4000;
 
-const curriculum = JSON.parse(
+const curriculumFile = JSON.parse(
   fs.readFileSync(path.join(DATA_DIR, "curriculum.json"), "utf8")
 );
+const routines = Array.isArray(curriculumFile.routines)
+  ? curriculumFile.routines
+  : curriculumFile?.id
+    ? [curriculumFile]
+    : [];
+const defaultRoutine = routines[0] || { id: "empty", title: "Empty", steps: [] };
 const programs = JSON.parse(
   fs.readFileSync(path.join(DATA_DIR, "programs.json"), "utf8")
 );
+
+function getRoutine(id) {
+  if (!id) return defaultRoutine;
+  return routines.find((routine) => routine.id === id) || null;
+}
+
+function sessionRoutine(session) {
+  return getRoutine(session.curriculumId) || defaultRoutine;
+}
 
 /**
  * @typedef {{
@@ -102,19 +117,33 @@ function jsonError(res, status, message) {
   return res.status(status).json({ error: message });
 }
 
-function getStep(index) {
-  if (index < 0 || index >= curriculum.steps.length) return null;
-  return curriculum.steps[index];
+function getStep(session, index) {
+  const steps = sessionRoutine(session).steps || [];
+  if (index < 0 || index >= steps.length) return null;
+  return steps[index];
+}
+
+function findStepById(session, stepId) {
+  return (sessionRoutine(session).steps || []).find((step) => step.id === stepId) || null;
 }
 
 function sessionPayload(session, evaluation = null) {
-  const done = session.currentStep >= curriculum.steps.length;
-  const nextStep = done ? null : getStep(session.currentStep);
+  const routine = sessionRoutine(session);
+  const steps = routine.steps || [];
+  const done = session.currentStep >= steps.length;
+  const nextStep = done ? null : getStep(session, session.currentStep);
   return {
     session: {
       sessionId: session.sessionId,
+      curriculumId: routine.id,
       currentStep: session.currentStep,
       completed: session.completed,
+    },
+    routine: {
+      id: routine.id,
+      title: routine.title,
+      summary: routine.summary || "",
+      stepCount: steps.length,
     },
     nextStep,
     done,
@@ -177,7 +206,7 @@ async function enrichWithGemini(session, step, evaluation, metrics) {
 }
 
 function resetExerciseState(session) {
-  const step = getStep(session.currentStep);
+  const step = getStep(session, session.currentStep);
   session.exerciseState = step
     ? freshExerciseState(step.exercise)
     : {};
@@ -241,13 +270,34 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.get("/api/curriculum", (_req, res) => {
-  res.json(curriculum);
+  res.json({
+    routines: routines.map((routine) => ({
+      id: routine.id,
+      title: routine.title,
+      summary: routine.summary || "",
+      steps: routine.steps,
+    })),
+  });
 });
 
-app.post("/api/sessions", (_req, res) => {
+app.get("/api/curriculum/:id", (req, res) => {
+  const found = routines.find((item) => item.id === req.params.id);
+  if (!found) return jsonError(res, 404, "Routine not found");
+  res.json(found);
+});
+
+app.post("/api/sessions", (req, res) => {
+  const requestedId =
+    typeof req.body?.curriculumId === "string" ? req.body.curriculumId.trim() : "";
+  const routine = requestedId ? getRoutine(requestedId) : defaultRoutine;
+  if (requestedId && !routine) {
+    return jsonError(res, 404, "Routine not found");
+  }
+
   const sessionId = crypto.randomUUID();
   const session = {
     sessionId,
+    curriculumId: (routine || defaultRoutine).id,
     currentStep: 0,
     completed: [],
     exerciseState: {},
@@ -282,11 +332,12 @@ app.post("/api/sessions/:id/progress", (req, res) => {
     return jsonError(res, 400, "passed must be a boolean");
   }
 
-  if (session.currentStep >= curriculum.steps.length) {
+  const steps = sessionRoutine(session).steps || [];
+  if (session.currentStep >= steps.length) {
     return res.json(sessionPayload(session));
   }
 
-  const expected = getStep(session.currentStep);
+  const expected = getStep(session, session.currentStep);
   // Idempotent skip: if this step was already completed, just return current state.
   if (session.completed.includes(stepId)) {
     return res.json(sessionPayload(session));
@@ -321,11 +372,12 @@ app.post("/api/sessions/:id/evaluate", async (req, res) => {
   const session = sessions.get(req.params.id);
   if (!session) return jsonError(res, 404, "Session not found");
 
-  if (session.currentStep >= curriculum.steps.length) {
+  const steps = sessionRoutine(session).steps || [];
+  if (session.currentStep >= steps.length) {
     if (!session.summary && geminiConfigured()) {
       const summary = await sessionSummary({
         completedSteps: session.completed.map((id) => {
-          const step = curriculum.steps.find((s) => s.id === id);
+          const step = findStepById(session, id);
           return step ? step.title : id;
         }),
         notes: session.coachNotes || [],
@@ -348,7 +400,7 @@ app.post("/api/sessions/:id/evaluate", async (req, res) => {
     return jsonError(res, 400, "stepId must be a non-empty string");
   }
 
-  const expected = getStep(session.currentStep);
+  const expected = getStep(session, session.currentStep);
   if (!expected || expected.id !== stepId) {
     return jsonError(
       res,
@@ -390,10 +442,10 @@ app.post("/api/sessions/:id/evaluate", async (req, res) => {
     session.currentStep += 1;
     resetExerciseState(session);
 
-    if (session.currentStep >= curriculum.steps.length) {
+    if (session.currentStep >= steps.length) {
       const summary = await sessionSummary({
         completedSteps: session.completed.map((id) => {
-          const step = curriculum.steps.find((s) => s.id === id);
+          const step = findStepById(session, id);
           return step ? step.title : id;
         }),
         notes: session.coachNotes || [],
@@ -421,8 +473,7 @@ app.post("/api/sessions/:id/coach", async (req, res) => {
   }
 
   const step =
-    curriculum.steps.find((s) => s.id === stepId) ||
-    getStep(session.currentStep);
+    findStepById(session, stepId) || getStep(session, session.currentStep);
   if (!step) return jsonError(res, 404, "Step not found");
 
   const parsed = parseMetrics(rawMetrics || { usable: true });

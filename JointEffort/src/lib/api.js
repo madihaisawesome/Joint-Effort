@@ -44,8 +44,16 @@ export function getCurriculum() {
   return api("/api/curriculum")
 }
 
-export function createSession() {
-  return api("/api/sessions", { method: "POST", timeoutMs: 8000 })
+export function createSession(curriculumId) {
+  const body =
+    curriculumId && String(curriculumId).trim()
+      ? JSON.stringify({ curriculumId: String(curriculumId).trim() })
+      : undefined
+  return api("/api/sessions", {
+    method: "POST",
+    body,
+    timeoutMs: 8000,
+  })
 }
 
 export function evaluateSession(sessionId, body) {

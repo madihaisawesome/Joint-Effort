@@ -116,7 +116,7 @@ function speakCoach(text) {
   }
 }
 
-export default function PoseCoach() {
+export default function PoseCoach({ curriculumId = "" }) {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const sessionRef = useRef(null)
@@ -631,7 +631,7 @@ export default function PoseCoach() {
       if (cancelled) return
 
       try {
-        const payload = await createSession()
+        const payload = await createSession(curriculumId)
         if (cancelled) return
         applyPayload(payload)
         setStatus("Session ready. Loading the pose model…")
@@ -680,7 +680,7 @@ export default function PoseCoach() {
       landmarker?.close?.()
       landmarker = null
     }
-  }, [])
+  }, [curriculumId])
 
   return (
     <div className="pose-coach">

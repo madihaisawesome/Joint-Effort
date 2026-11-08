@@ -1,36 +1,119 @@
 {
-  "id": "gentle-test-routine",
-  "title": "Gentle Test Routine",
-  "steps": [
+  "routines": [
     {
-      "id": "step-1-arm-raise",
-      "title": "Arm Raise",
-      "instruction": "Raise both arms out to shoulder height, then lower them. Repeat 5 times.",
-      "exercise": "arm_raise",
-      "targetAngle": 90,
-      "tolerance": 15,
-      "reps": 5,
-      "minHoldSeconds": 0.4
+      "id": "gentle-test-routine",
+      "title": "Gentle Test Routine",
+      "summary": "A short mixed session: arm raises, sit-to-stand, and a quiet balance hold.",
+      "steps": [
+        {
+          "id": "gentle-arm-raise",
+          "title": "Arm Raise",
+          "instruction": "Raise both arms out to shoulder height, then lower them. Repeat 5 times.",
+          "exercise": "arm_raise",
+          "targetAngle": 90,
+          "tolerance": 15,
+          "reps": 5,
+          "minHoldSeconds": 0.4
+        },
+        {
+          "id": "gentle-sit-to-stand",
+          "title": "Sit to Stand",
+          "instruction": "From a seated position, stand up fully, then sit back down. Repeat 5 times at your own pace.",
+          "exercise": "sit_to_stand",
+          "targetAngle": 165,
+          "seatedAngle": 90,
+          "tolerance": 15,
+          "reps": 5
+        },
+        {
+          "id": "gentle-balance-hold",
+          "title": "Balance Hold",
+          "instruction": "Stand with hips level and stay still for a short hold. Repeat 5 steady holds.",
+          "exercise": "balance_hold",
+          "tolerance": 15,
+          "holdSeconds": 2,
+          "reps": 5,
+          "maxHipMovement": 0.04
+        }
+      ]
     },
     {
-      "id": "step-2-sit-to-stand",
-      "title": "Sit to Stand",
-      "instruction": "From a seated position, stand up fully, then sit back down. Repeat 5 times at your own pace.",
-      "exercise": "sit_to_stand",
-      "targetAngle": 165,
-      "seatedAngle": 90,
-      "tolerance": 15,
-      "reps": 5
+      "id": "arm-mobility",
+      "title": "Arm Mobility",
+      "summary": "Focus on shoulder-height arm raises only — good as a warm-up or stand-alone session.",
+      "steps": [
+        {
+          "id": "arm-mobility-raise",
+          "title": "Arm Raise",
+          "instruction": "Raise both arms out to the sides until they reach shoulder height, hold briefly, then lower. Repeat 8 times.",
+          "exercise": "arm_raise",
+          "targetAngle": 90,
+          "tolerance": 15,
+          "reps": 8,
+          "minHoldSeconds": 0.4
+        }
+      ]
     },
     {
-      "id": "step-3-balance-hold",
-      "title": "Balance Hold",
-      "instruction": "Stand with hips level and stay still for a short hold. Repeat 5 steady holds.",
-      "exercise": "balance_hold",
-      "tolerance": 15,
-      "holdSeconds": 2,
-      "reps": 5,
-      "maxHipMovement": 0.04
+      "id": "chair-strength",
+      "title": "Chair Strength",
+      "summary": "Sit-to-stand practice from a sturdy chair. Use the armrests if you need them.",
+      "steps": [
+        {
+          "id": "chair-sit-to-stand",
+          "title": "Sit to Stand",
+          "instruction": "From a seated position, stand up fully, then sit back down with control. Repeat 8 times at your own pace.",
+          "exercise": "sit_to_stand",
+          "targetAngle": 165,
+          "seatedAngle": 90,
+          "tolerance": 15,
+          "reps": 8
+        }
+      ]
+    },
+    {
+      "id": "steady-balance",
+      "title": "Steady Balance",
+      "summary": "Quiet standing holds to practice keeping your hips level and still.",
+      "steps": [
+        {
+          "id": "steady-balance-hold",
+          "title": "Balance Hold",
+          "instruction": "Stand with feet grounded and hips level. Stay still for each short hold. Repeat 6 steady holds.",
+          "exercise": "balance_hold",
+          "tolerance": 15,
+          "holdSeconds": 2.5,
+          "reps": 6,
+          "maxHipMovement": 0.04
+        }
+      ]
+    },
+    {
+      "id": "quick-warmup",
+      "title": "Quick Warm-Up",
+      "summary": "A shorter two-step session: light arm raises, then a brief balance hold.",
+      "steps": [
+        {
+          "id": "warmup-arm-raise",
+          "title": "Arm Raise",
+          "instruction": "Raise both arms out to shoulder height, then lower them. Repeat 4 times.",
+          "exercise": "arm_raise",
+          "targetAngle": 90,
+          "tolerance": 15,
+          "reps": 4,
+          "minHoldSeconds": 0.35
+        },
+        {
+          "id": "warmup-balance-hold",
+          "title": "Balance Hold",
+          "instruction": "Stand quietly with hips level for a short hold. Repeat 3 steady holds.",
+          "exercise": "balance_hold",
+          "tolerance": 15,
+          "holdSeconds": 2,
+          "reps": 3,
+          "maxHipMovement": 0.045
+        }
+      ]
     }
   ]
 }

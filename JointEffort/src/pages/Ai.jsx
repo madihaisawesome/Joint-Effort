@@ -48,7 +48,7 @@ export default function Ai() {
         camera watches your form. Video stays on this device — only joint angles go to the coaching
         server.
       </p>
-      <PoseCoach />
+      <PoseCoach curriculumId={exercise.id} />
       <Link className="pill" to={returnTo}>
         Back
       </Link>
