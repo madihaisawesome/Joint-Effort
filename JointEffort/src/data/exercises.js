@@ -1,10 +1,10 @@
 const SAFETY = "Stop if something hurts. This is not medical advice."
 
 const SETUP =
-  "Put your full body in the frame. Keep the phone or laptop steady, and use enough light to see yourself clearly."
+  "Keep your torso in the camera. You can stand closer — ankles do not need to fit. Steady the device and use enough light."
 
 const SETUP_LONG =
-  "Set the phone or laptop where it will not wobble. Step back until your whole body is in the picture, from head to feet. Turn on a light or face a window so you are easy to see."
+  "Set the phone or laptop where it will not wobble. Face the camera so your shoulders and hips are visible; standing closer is fine if your torso stays in view. Turn on a light or face a window so you are easy to see."
 
 /** Fallback if the Express backend is offline. */
 export const fallbackExercises = [

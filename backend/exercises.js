@@ -97,7 +97,7 @@ function evaluateStep(step, metrics, state, nowMs) {
       passed: false,
       inRange: false,
       feedback:
-        "Step back so your full body fits in the camera — we need clearer landmarks",
+        "Center yourself so your torso and joints stay in view — a little closer is fine",
       progress: progressSnapshot(step, state),
     };
   }

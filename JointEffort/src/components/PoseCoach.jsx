@@ -42,10 +42,10 @@ const BONES = [
 const JOINTS = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]
 const BLANK = { leftShoulder: "—", rightShoulder: "—", leftKnee: "—", rightKnee: "—" }
 const STEP_BACK = {
-  leftShoulder: "Step back",
-  rightShoulder: "Step back",
-  leftKnee: "Step back",
-  rightKnee: "Step back",
+  leftShoulder: "Center",
+  rightShoulder: "Center",
+  leftKnee: "Center",
+  rightKnee: "Center",
 }
 
 function landmarkVisibility(point) {
@@ -73,21 +73,40 @@ function formatAngle(deg) {
   return `${Math.round(deg)}°`
 }
 
-function bodyIsVisible(landmarks) {
-  // Torso + knees matter most; ankles often clip during sit-to-stand.
-  const core = [11, 12, 23, 24, 25, 26].map((index) => landmarks[index]).filter(Boolean)
-  if (core.length < 6) return false
-  const average = core.reduce((sum, point) => sum + landmarkVisibility(point), 0) / core.length
-  if (average < 0.4) return false
-  if (core.filter((point) => landmarkVisibility(point) < 0.35).length >= 3) return false
-  const xs = core.map((point) => point.x)
-  const ys = core.map((point) => point.y)
-  const minX = Math.min(...xs)
-  const maxX = Math.max(...xs)
-  const minY = Math.min(...ys)
-  const maxY = Math.max(...ys)
-  const clipped = minX < 0.01 || maxX > 0.99 || minY < 0.01 || maxY > 0.995
-  return !(maxY - minY > 0.96 || clipped)
+function landmarkInView(point, pad = -0.06) {
+  if (!point) return false
+  if (landmarkVisibility(point) < 0.22) return false
+  // Negative pad lets joints sit near / slightly past the frame edge when close.
+  return point.x >= pad && point.x <= 1 - pad && point.y >= pad && point.y <= 1 - pad
+}
+
+/**
+ * Allow standing closer — only require the joints this exercise needs,
+ * and do not reject just because the body fills most of the frame.
+ */
+function bodyIsVisible(landmarks, exercise = "arm_raise") {
+  const needed =
+    exercise === "sit_to_stand"
+      ? [LM.LEFT_HIP, LM.RIGHT_HIP, LM.LEFT_KNEE, LM.RIGHT_KNEE]
+      : exercise === "balance_hold"
+        ? [LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER, LM.LEFT_HIP, LM.RIGHT_HIP]
+        : [
+            LM.LEFT_SHOULDER,
+            LM.RIGHT_SHOULDER,
+            LM.LEFT_ELBOW,
+            LM.RIGHT_ELBOW,
+            LM.LEFT_HIP,
+            LM.RIGHT_HIP,
+          ]
+
+  const points = needed.map((index) => landmarks[index]).filter(Boolean)
+  if (points.length < needed.length) return false
+
+  const visible = points.filter((point) => landmarkVisibility(point) >= 0.28)
+  if (visible.length < Math.ceil(needed.length * 0.7)) return false
+
+  const inView = points.filter((point) => landmarkInView(point))
+  return inView.length >= Math.ceil(needed.length * 0.7)
 }
 
 function progressLabel(progress) {
@@ -491,12 +510,13 @@ export default function PoseCoach({ curriculumId = "" }) {
           sendMetrics({ usable: false })
         } else {
           drawSkeleton(smoothPoints(landmarks))
-          if (!bodyIsVisible(landmarks)) {
+          const exercise = coach.nextStep?.exercise || "arm_raise"
+          if (!bodyIsVisible(landmarks, exercise)) {
             resetSmoothing()
-            setGuidance("Step back so your whole body is in the frame.")
+            setGuidance("Center yourself so your torso and working joints stay in view.")
             setAiTip(false)
             publishAngles(STEP_BACK)
-            setStatus("The camera is on. Step back so your whole body is in the frame.")
+            setStatus("The camera is on. Keep your torso in view — a little closer is fine.")
             setProgressText("")
             sendMetrics({ usable: false })
           } else {
