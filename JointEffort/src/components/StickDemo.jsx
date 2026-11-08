@@ -272,7 +272,11 @@ export default function StickDemo({ exercise, reducedMotion = false, compact = f
           </>
         )}
       </svg>
-      {!compact && caption ? <p className="stick-caption">{caption}</p> : null}
+      {!compact ? (
+        <p className="stick-caption" aria-live="polite">
+          {caption || "\u00A0"}
+        </p>
+      ) : null}
     </figure>
   )
 }

@@ -677,12 +677,18 @@ html[data-contrast="high"] .exercise-card {
 .pose-practice-hint .stick-demo {
   width: 88px;
   flex-shrink: 0;
+  padding-bottom: 0;
 }
-.pose-practice-hint p { margin: 0; font-weight: 700; }
+.pose-practice-hint > p { margin: 0; font-weight: 700; }
 .stick-demo {
+  position: relative;
   margin: 0 auto;
   width: min(100%, 260px);
+  padding-bottom: 2.8em;
   text-align: center;
+}
+.stick-demo.is-compact {
+  padding-bottom: 0;
 }
 .stick-demo svg {
   display: block;
@@ -711,9 +717,15 @@ html[data-contrast="high"] .exercise-card {
   stroke-width: 2.5;
 }
 .stick-caption {
-  margin: 0.45rem 0 0 !important;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0 !important;
+  min-height: 2.6em;
   font-size: 1rem !important;
   font-weight: 700;
+  line-height: 1.3;
   color: var(--green);
 }
 @media (max-width: 720px) {

@@ -20,10 +20,12 @@
           "title": "Sit to Stand",
           "instruction": "From a seated position, stand up fully, then sit back down. Repeat 5 times at your own pace.",
           "exercise": "sit_to_stand",
-          "targetAngle": 165,
-          "seatedAngle": 90,
-          "tolerance": 15,
-          "reps": 5
+          "targetAngle": 155,
+          "seatedAngle": 100,
+          "tolerance": 35,
+          "reps": 5,
+          "minBendDelta": 10,
+          "minRiseDelta": 10
         },
         {
           "id": "gentle-balance-hold",
@@ -64,10 +66,12 @@
           "title": "Sit to Stand",
           "instruction": "From a seated position, stand up fully, then sit back down with control. Repeat 8 times at your own pace.",
           "exercise": "sit_to_stand",
-          "targetAngle": 165,
-          "seatedAngle": 90,
-          "tolerance": 15,
-          "reps": 8
+          "targetAngle": 155,
+          "seatedAngle": 100,
+          "tolerance": 35,
+          "reps": 8,
+          "minBendDelta": 10,
+          "minRiseDelta": 10
         }
       ]
     },

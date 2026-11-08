@@ -74,19 +74,20 @@ function formatAngle(deg) {
 }
 
 function bodyIsVisible(landmarks) {
-  const key = KEY_LANDMARKS.map((index) => landmarks[index]).filter(Boolean)
-  if (key.length < KEY_LANDMARKS.length) return false
-  const average = key.reduce((sum, point) => sum + landmarkVisibility(point), 0) / key.length
-  if (average < 0.55) return false
-  if (key.filter((point) => landmarkVisibility(point) < 0.55).length >= 3) return false
-  const xs = key.map((point) => point.x)
-  const ys = key.map((point) => point.y)
+  // Torso + knees matter most; ankles often clip during sit-to-stand.
+  const core = [11, 12, 23, 24, 25, 26].map((index) => landmarks[index]).filter(Boolean)
+  if (core.length < 6) return false
+  const average = core.reduce((sum, point) => sum + landmarkVisibility(point), 0) / core.length
+  if (average < 0.4) return false
+  if (core.filter((point) => landmarkVisibility(point) < 0.35).length >= 3) return false
+  const xs = core.map((point) => point.x)
+  const ys = core.map((point) => point.y)
   const minX = Math.min(...xs)
   const maxX = Math.max(...xs)
   const minY = Math.min(...ys)
   const maxY = Math.max(...ys)
-  const clipped = minX < 0.03 || maxX > 0.97 || minY < 0.03 || maxY > 0.97
-  return !(maxY - minY > 0.92 || clipped)
+  const clipped = minX < 0.01 || maxX > 0.99 || minY < 0.01 || maxY > 0.995
+  return !(maxY - minY > 0.96 || clipped)
 }
 
 function progressLabel(progress) {
@@ -724,7 +725,7 @@ export default function PoseCoach({ curriculumId = "" }) {
 
       {phase === "practice" ? (
         <div className="pose-practice-hint">
-          <StickDemo exercise={exerciseType} reducedMotion={reducedMotion} />
+          <StickDemo exercise={exerciseType} reducedMotion={reducedMotion} compact />
           <p>Keep matching this demo. The camera is watching your form.</p>
         </div>
       ) : null}

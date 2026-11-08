@@ -38,7 +38,14 @@ function freshExerciseState(exercise) {
     case "arm_raise":
       return { phase: "seek_raise", reps: 0, inRangeSince: null };
     case "sit_to_stand":
-      return { phase: "seek_seated", reps: 0 };
+      return {
+        phase: "seek_seated",
+        reps: 0,
+        peak: null,
+        trough: null,
+        hipHigh: null,
+        hipLow: null,
+      };
     case "balance_hold":
       return { inRangeSince: null, hipOrigin: null, reps: 0 };
     default:
@@ -61,18 +68,25 @@ function sideHint(value, target, tol, sideLabel) {
   return null;
 }
 
-function kneeHint(value, target, tol, goal) {
+function bestKnee(left, right) {
+  const leftOk = typeof left === "number" && Number.isFinite(left);
+  const rightOk = typeof right === "number" && Number.isFinite(right);
+  if (leftOk && rightOk) return (left + right) / 2;
+  if (leftOk) return left;
+  if (rightOk) return right;
+  return null;
+}
+
+function kneeHint(value, seatedMax, standingMin, goal) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    return "Keep both knees visible";
+    return "Keep your knees in view";
   }
   if (goal === "stand") {
-    if (value < target - tol) return "straighten your knees more to stand tall";
-    if (value > target + tol) return "ease your knees slightly — don’t lock hard";
+    if (value < standingMin) return "straighten your knees more to stand tall";
     return null;
   }
-  // sit
-  if (value > target + tol) return "bend your knees more to sit down";
-  if (value < target - tol) return "don’t sit quite so low — rise a little";
+  // sit / squat bottom
+  if (value > seatedMax) return "bend your knees more to sit or squat down";
   return null;
 }
 
@@ -272,56 +286,80 @@ function evaluateArmRaise(step, metrics, state, nowMs) {
   };
 }
 
-function sitToStandFeedback(phase, left, right, knee, standingTarget, seatedTarget, tol, reps, needReps) {
-  const asymmetry =
-    typeof left === "number" &&
-    typeof right === "number" &&
-    Math.abs(left - right) > tol;
+function sitThresholds(step) {
+  const tol = typeof step.tolerance === "number" ? step.tolerance : 35;
+  const standingTarget = typeof step.targetAngle === "number" ? step.targetAngle : 155;
+  const seatedTarget = typeof step.seatedAngle === "number" ? step.seatedAngle : 100;
+  return {
+    // Soft absolute fallbacks — front cameras rarely see a true 90°/165°.
+    seatedMax: seatedTarget + tol, // ~135°
+    standingMin: Math.max(118, standingTarget - tol), // ~120°
+    // Relative movement is what actually counts on a webcam.
+    dropDegrees: typeof step.minBendDelta === "number" ? step.minBendDelta : 10,
+    riseDegrees: typeof step.minRiseDelta === "number" ? step.minRiseDelta : 10,
+    hipDrop: typeof step.minHipDrop === "number" ? step.minHipDrop : 0.035,
+    hipRise: typeof step.minHipRise === "number" ? step.minHipRise : 0.035,
+  };
+}
 
-  if (asymmetry) {
-    if (left < right - tol) {
-      return "Your left knee is more bent than your right — even them out";
+function sitToStandFeedback(phase, knee, seatedMax, standingMin, reps, needReps) {
+  if (phase === "seek_seated" || phase === "seek_sit") {
+    const hint = kneeHint(knee, seatedMax, standingMin, "sit");
+    if (phase === "seek_seated") {
+      return hint
+        ? `Start seated or in a squat — ${hint}`
+        : "Sit or squat down to begin, then stand up";
     }
-    return "Your right knee is more bent than your left — even them out";
-  }
-
-  if (phase === "seek_seated") {
-    const hint = kneeHint(knee, seatedTarget, tol, "sit");
-    return hint
-      ? `Start seated — ${hint}`
-      : "Sit down with knees bent about 90° to begin";
+    if (hint) return `Rep ${reps + 1}/${needReps}: ${hint}`;
+    return `Rep ${reps + 1}/${needReps}: sit or squat back down, then stand again`;
   }
 
   if (phase === "seek_stand") {
-    const hint = kneeHint(knee, standingTarget, tol, "stand");
+    const hint = kneeHint(knee, seatedMax, standingMin, "stand");
     if (hint) return `Rep ${reps + 1}/${needReps}: ${hint}`;
-    return `Rep ${reps + 1}/${needReps}: stand all the way up`;
-  }
-
-  if (phase === "seek_sit") {
-    const hint = kneeHint(knee, seatedTarget, tol, "sit");
-    if (hint) return `Rep ${reps + 1}/${needReps}: ${hint}`;
-    return `Rep ${reps + 1}/${needReps}: sit back down with control`;
+    return `Rep ${reps + 1}/${needReps}: stand up — that counts the rep`;
   }
 
   return "Follow the sit-to-stand movement at your own pace";
 }
 
 function evaluateSitToStand(step, metrics, state) {
-  const standingTarget = step.targetAngle;
-  const seatedTarget = step.seatedAngle;
-  const tol = step.tolerance;
-  const needReps = step.reps;
+  const {
+    seatedMax,
+    standingMin,
+    dropDegrees,
+    riseDegrees,
+    hipDrop,
+    hipRise,
+  } = sitThresholds(step);
+  const needReps = step.reps || 1;
   const left = metrics.leftKneeAngle;
   const right = metrics.rightKneeAngle;
-  const knee = avg(left, right);
+  // Prefer the more bent knee so shallow camera angles still register a squat.
+  const kneeCandidates = [left, right].filter(
+    (value) => typeof value === "number" && Number.isFinite(value)
+  );
+  const knee =
+    kneeCandidates.length === 0
+      ? null
+      : kneeCandidates.length === 1
+        ? kneeCandidates[0]
+        : Math.min(left, right);
+  const hipY = avg(
+    metrics.leftHip && typeof metrics.leftHip.y === "number"
+      ? metrics.leftHip.y
+      : null,
+    metrics.rightHip && typeof metrics.rightHip.y === "number"
+      ? metrics.rightHip.y
+      : null
+  );
 
   if (typeof knee !== "number") {
     return {
       passed: false,
       inRange: false,
       feedback:
-        "We can’t see your knees clearly — step back and face the camera",
+        "We can’t see your knees clearly — step back so your legs are in the frame",
       progress: {
         reps: state.reps || 0,
         targetReps: needReps,
@@ -330,19 +368,61 @@ function evaluateSitToStand(step, metrics, state) {
     };
   }
 
-  const seated = within(knee, seatedTarget, tol);
-  const standing = within(knee, standingTarget, tol);
-
   if (!state.phase) state.phase = "seek_seated";
   if (typeof state.reps !== "number") state.reps = 0;
+  if (typeof state.peak !== "number") state.peak = knee;
+  if (typeof state.trough !== "number") state.trough = knee;
+  if (typeof hipY === "number") {
+    if (typeof state.hipHigh !== "number") state.hipHigh = hipY;
+    if (typeof state.hipLow !== "number") state.hipLow = hipY;
+    // MediaPipe y grows downward: sit = higher y, stand = lower y.
+    state.hipHigh = Math.max(state.hipHigh, hipY);
+    state.hipLow = Math.min(state.hipLow, hipY);
+  }
 
+  state.peak = Math.max(state.peak, knee);
+  state.trough = Math.min(state.trough, knee);
+
+  const kneeDropped = state.peak - knee >= dropDegrees;
+  const kneeRisen = knee - state.trough >= riseDegrees;
+  const hipSat =
+    typeof hipY === "number" &&
+    typeof state.hipLow === "number" &&
+    hipY - state.hipLow >= hipDrop;
+  const hipStood =
+    typeof hipY === "number" &&
+    typeof state.hipHigh === "number" &&
+    state.hipHigh - hipY >= hipRise;
+
+  const seated = knee <= seatedMax || kneeDropped || hipSat;
+  const standing = knee >= standingMin || kneeRisen || hipStood;
+
+  // Count on standing up (sit → stand = 1 rep), then require a sit before the next.
   if (state.phase === "seek_seated" && seated) {
     state.phase = "seek_stand";
+    state.trough = knee;
+    state.peak = knee;
+    if (typeof hipY === "number") {
+      state.hipHigh = hipY;
+      state.hipLow = hipY;
+    }
   } else if (state.phase === "seek_stand" && standing) {
-    state.phase = "seek_sit";
-  } else if (state.phase === "seek_sit" && seated) {
     state.reps += 1;
+    state.phase = "seek_sit";
+    state.trough = knee;
+    state.peak = knee;
+    if (typeof hipY === "number") {
+      state.hipHigh = hipY;
+      state.hipLow = hipY;
+    }
+  } else if (state.phase === "seek_sit" && seated) {
     state.phase = "seek_stand";
+    state.trough = knee;
+    state.peak = knee;
+    if (typeof hipY === "number") {
+      state.hipHigh = hipY;
+      state.hipLow = hipY;
+    }
   }
 
   const passed = state.reps >= needReps;
@@ -350,12 +430,9 @@ function evaluateSitToStand(step, metrics, state) {
     ? `Sit-to-stand complete — ${needReps} reps done`
     : sitToStandFeedback(
         state.phase,
-        left,
-        right,
         knee,
-        standingTarget,
-        seatedTarget,
-        tol,
+        seatedMax,
+        standingMin,
         state.reps,
         needReps
       );
@@ -371,6 +448,8 @@ function evaluateSitToStand(step, metrics, state) {
       kneeAngle: Number(knee.toFixed(1)),
       leftKneeAngle: left ?? null,
       rightKneeAngle: right ?? null,
+      seatedMax,
+      standingMin,
     },
   };
 }
